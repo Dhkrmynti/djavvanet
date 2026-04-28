@@ -127,6 +127,7 @@
                             <tr>
                                 <th class="text-center w-6 border-r border-[var(--border-sub)]">#</th>
                                 <th class="border-r border-[var(--border-sub)]">Identitas / Username</th>
+                                <th class="border-r border-[var(--border-sub)]">Data Pelanggan</th>
                                 <th class="border-r border-[var(--border-sub)]">Profile</th>
                                 <th class="text-center w-8 border-r border-[var(--border-sub)]">St</th>
                                 <th class="text-center w-8 border-r border-[var(--border-sub)]">Online</th>
@@ -288,17 +289,19 @@ $(document).ready(function() {
     const mikTable = $('#mikrotikTable').DataTable({
         processing: true,
         serverSide: true,
-        ordering: false,
+        ordering: true,
+        order: [], // Default no sorting
         ajax: "{{ route('admin.dashboard.mikrotik_data') }}",
         dom: 't',
         pageLength: 10,
         columns: [
-            { data: null, render: (d,t,r,m) => `<span class="text-slate-400">${m.row + m.settings._iDisplayStart + 1}</span>`, className: 'text-center border-r border-[var(--border-sub)]' },
-            { data: 'name', name: 'name', className: 'font-bold border-r border-[var(--border-sub)]', defaultContent: '-' },
-            { data: 'profile', name: 'profile', className: 'font-mono text-[9px] border-r border-[var(--border-sub)]', defaultContent: '-' },
-            { data: 'status', name: 'status', className: 'text-center border-r border-[var(--border-sub)]' },
-            { data: 'online', name: 'online', className: 'text-center border-r border-[var(--border-sub)]' },
-            { data: 'action', name: 'action', className: 'text-center' }
+            { data: null, orderable: false, render: (d,t,r,m) => `<span class="text-slate-400">${m.row + m.settings._iDisplayStart + 1}</span>`, className: 'text-center border-r border-[var(--border-sub)]' },
+            { data: 'name', name: 'name', orderable: false, className: 'font-bold border-r border-[var(--border-sub)]', defaultContent: '-' },
+            { data: 'db_customer', name: 'db_customer', orderable: true, className: 'border-r border-[var(--border-sub)] py-1', defaultContent: '-' },
+            { data: 'profile', name: 'profile', orderable: true, className: 'font-mono text-[9px] border-r border-[var(--border-sub)]', defaultContent: '-' },
+            { data: 'status', name: 'status', orderable: false, className: 'text-center border-r border-[var(--border-sub)]' },
+            { data: 'online', name: 'online', orderable: false, className: 'text-center border-r border-[var(--border-sub)]' },
+            { data: 'action', name: 'action', orderable: false, className: 'text-center' }
         ],
         drawCallback: function(settings) {
             drawCustomPagination(settings);

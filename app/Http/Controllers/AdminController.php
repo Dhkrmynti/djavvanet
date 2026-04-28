@@ -600,7 +600,7 @@ class AdminController extends Controller
             $template
         );
 
-        $res = $this->waService->sendMessage($customer->whatsapp_number, $message);
+        $res = $this->waService->sendMessage($customer->whatsapp_number, $message, null, true);
         
         if ($res === true) {
             return response()->json(['ok' => true, 'message' => 'Greeting berhasil dikirim ke ' . $customer->full_name]);

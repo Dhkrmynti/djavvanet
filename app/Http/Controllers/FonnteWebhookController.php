@@ -45,32 +45,34 @@ class FonnteWebhookController extends Controller
 
         $formattedDevice = $this->formatNumber($payload['device'] ?? '');
         $formattedSender = $sender ? $this->formatNumber($sender) : null;
+
+        // Bangun whitelist nomor admin dari .env (FONNTE_ADMIN_NUMBERS=628xxx,628yyy)
+        $adminNumbers = collect(explode(',', config('services.fonnte.admin_numbers', '')))
+            ->map(fn($n) => $this->formatNumber(trim($n)))
+            ->filter()
+            ->merge([$formattedDevice])
+            ->unique()
+            ->values()
+            ->toArray();
+
+        // Pola outgoing dari Fonnte Capture All:
+        // 1. Sender ada di whitelist admin (kirim dari HP personal admin)
+        // 2. quick:true DAN tidak ada field "username" → outgoing dari device (Fonnte swap sender↔target)
+        $isFromDevice = ($payload['quick'] ?? false) === true && !isset($payload['username']);
+        $isAdminWhitelist = !empty($formattedSender) && in_array($formattedSender, $adminNumbers);
         
-        $isManualAdminReply = (
-            (!empty($formattedSender) && $formattedSender === $formattedDevice) || 
-            (!empty($target) && empty($payload['inboxid']))
-        );
+        $isManualAdminReply = $isAdminWhitelist || $isFromDevice;
 
-        $customerPhone = null;
-        if ($isManualAdminReply) {
-            $customerPhone = $this->formatNumber($target ?: ($formattedSender ?? ''));
-        } else {
-            $customerPhone = $formattedSender;
-        }
-
-        // De-duplikasi berdasarkan konten untuk mencegah API Echo tersimpan ganda
-        // Jika pesan dengan konten yang sama baru saja dikirim ke target ini via API, abaikan.
-        $contentLockKey = 'fonnte_content_lock_' . md5(($customerPhone ?? 'none') . $messageText);
-        if (!Cache::add($contentLockKey, true, 10)) {
-            Log::info('Fonnte: Ignored global content-based duplicate/echo: ' . $messageText);
-            return response()->json(['status' => 'success', 'echo' => true]);
-        }
+        // Untuk semua kasus (incoming/outgoing), "sender" Fonnte adalah nomor pelanggan
+        // karena untuk outgoing, Fonnte menukar posisi sender = target/recipient
+        $customerPhone = $formattedSender;
 
         Log::info('--- Fonnte Detection ---', [
-            'device' => $formattedDevice,
-            'sender' => $formattedSender,
-            'customer' => $customerPhone ?: 'N/A',
-            'is_outgoing' => $isManualAdminReply
+            'device'       => $formattedDevice,
+            'sender'       => $formattedSender,
+            'customer'     => $customerPhone ?: 'N/A',
+            'is_outgoing'  => $isManualAdminReply,
+            'admin_list'   => $adminNumbers,
         ]);
 
         if (empty($customerPhone) || empty($messageText)) {
@@ -150,6 +152,22 @@ class FonnteWebhookController extends Controller
         }
 
         $senderType = $isManualAdminReply ? 'admin' : 'customer';
+
+        if ($senderType === 'admin') {
+            // Cegah duplikasi antara API SaveToChatHistory vs Webhook Echo
+            $shortText = substr(trim($messageText), 0, 30);
+            
+            $recentDuplicate = $conversation->messages()
+                ->where('sender_type', 'admin')
+                ->where('created_at', '>=', now()->subSeconds(60))
+                ->where('message', 'LIKE', $shortText . '%')
+                ->exists();
+
+            if ($recentDuplicate) {
+                Log::info('Fonnte: Ignored duplicated webhook echo message in DB', ['short_text' => $shortText]);
+                return response()->json(['status' => 'success']);
+            }
+        }
 
         $message = $conversation->messages()->create([
             'sender_type' => $senderType,

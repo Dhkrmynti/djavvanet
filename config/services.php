@@ -37,6 +37,7 @@ return [
 
     'fonnte' => [
         'token' => env('FONNTE_TOKEN'),
+        'admin_numbers' => env('FONNTE_ADMIN_NUMBERS', ''),
     ],
 
 ];

@@ -52,6 +52,9 @@ class DashboardController extends Controller
             $data = array_values($data);
 
             $isolirProfile = \App\Models\MikrotikSetting::first()?->isolir_profile ?? 'isolir';
+            
+            // Ambil data customer dari database untuk di-map ke mikrotik secrets berdasarkan username
+            $customers = Customer::select('customer_code', 'username', 'full_name', 'address')->get()->keyBy('username');
 
             return DataTables::of(collect($data))
                 ->addColumn('status', function($s) {
@@ -60,6 +63,22 @@ class DashboardController extends Controller
                         return '<span class="text-red-600 dark:text-red-400 font-black uppercase tracking-tighter text-[10px]">OFF</span>';
                     }
                     return '<span class="text-green-600 dark:text-green-400 font-black uppercase tracking-tighter text-[10px]">ON</span>';
+                })
+                ->addColumn('db_customer', function($s) use ($customers) {
+                    $name = $s['name'] ?? '';
+                    $customer = $customers->get($name);
+                    
+                    if ($customer) {
+                        return '
+                            <div class="flex flex-col">
+                                <span class="font-bold text-slate-800 dark:text-slate-100">'.$customer->full_name.'</span>
+                                <span class="text-xs text-slate-500 dark:text-slate-400 uppercase font-medium tracking-wider">'.$customer->customer_code.'</span>
+                                <span class="text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-[200px]" title="'.$customer->address.'">'.$customer->address.'</span>
+                            </div>
+                        ';
+                    } else {
+                        return '<span class="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800 text-[8px] font-bold uppercase tracking-wider py-0.5 px-1.5 rounded-[2px] block w-max">Belum Terdaftar</span>';
+                    }
                 })
                 ->addColumn('online', function($s) {
                     $isOnline = isset($s['online']) && $s['online'];
@@ -108,7 +127,7 @@ class DashboardController extends Controller
                 ->editColumn('profile', function($s) {
                     return $s['profile'] ?? '-';
                 })
-                ->rawColumns(['status', 'online', 'action'])
+                ->rawColumns(['status', 'db_customer', 'online', 'action'])
                 ->make(true);
         } catch (\Exception $e) {
             return response()->json([

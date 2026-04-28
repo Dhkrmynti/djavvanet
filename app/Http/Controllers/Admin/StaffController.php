@@ -16,28 +16,28 @@ class StaffController extends Controller
             'dashboard.mikrotik' => 'Lihat Real-time Mikrotik di Dashboard',
         ],
         'Pelanggan' => [
-            'customers.view'   => 'Lihat Daftar Pelanggan',
+            'customers.view' => 'Lihat Daftar Pelanggan',
             'customers.create' => 'Tambah Pelanggan Baru',
-            'customers.edit'   => 'Edit Data Pelanggan',
+            'customers.edit' => 'Edit Data Pelanggan',
             'customers.delete' => 'Hapus Pelanggan',
-            'customers.sync'   => 'Push ke Mikrotik',
+            'customers.sync' => 'Push ke Mikrotik',
         ],
         'Tagihan' => [
-            'invoices.view'     => 'Lihat Daftar Tagihan',
-            'invoices.edit'     => 'Edit Tagihan',
-            'invoices.delete'   => 'Hapus Tagihan',
+            'invoices.view' => 'Lihat Daftar Tagihan',
+            'invoices.edit' => 'Edit Tagihan',
+            'invoices.delete' => 'Hapus Tagihan',
             'invoices.generate' => 'Generate Tagihan Baru',
             'invoices.whatsapp' => 'Kirim WA Tagihan',
         ],
         'Paket' => [
-            'packages.view'   => 'Lihat Paket Internet',
+            'packages.view' => 'Lihat Paket Internet',
             'packages.manage' => 'Kelola Paket (Add/Edit/Delete)',
         ],
         'Sistem' => [
-            'staff.manage'       => 'Kelola Akun Staff',
-            'settings.mikrotik'  => 'Setting Mikrotik',
-            'settings.xendit'    => 'Setting Xendit',
-            'settings.whatsapp'  => 'Setting Template WA',
+            'staff.manage' => 'Kelola Akun Staff',
+            'settings.mikrotik' => 'Setting Mikrotik',
+            'settings.xendit' => 'Setting Xendit',
+            'settings.whatsapp' => 'Setting Template WA',
         ],
     ];
 
@@ -54,8 +54,8 @@ class StaffController extends Controller
 
         return DataTables::of($query)
             ->addColumn('raw_user', function (User $user) {
-                return $user->toArray();
-            })
+            return $user->toArray();
+        })
             ->toJson();
     }
 
