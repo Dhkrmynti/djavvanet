@@ -1,0 +1,126 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Outfit', sans-serif;
+}
+
+:root {
+    --bg-main: #020617;
+    --brand-400: #38bdf8;
+    --brand-500: #0ea5e9;
+    --brand-600: #0284c7;
+}
+
+/* Glassmorphism Refined */
+.glass-bento {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+    transition: background 0.3s ease, border-color 0.3s ease;
+    transform: translateZ(0);
+}
+
+.glass-bento:hover {
+    background: rgba(15, 23, 42, 0.95);
+    border-color: rgba(56, 189, 248, 0.15);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+}
+
+.glass-pill {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+/* Background Depth */
+.blob {
+    position: fixed;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(14, 165, 233, 0.05) 0%, transparent 70%);
+    filter: blur(100px);
+    z-index: -1;
+    pointer-events: none;
+}
+
+@keyframes pulse-slow {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.05); }
+}
+
+.animate-pulse-slow {
+    animation: pulse-slow 6s infinite ease-in-out;
+}
+
+/* Global Aesthetics */
+h1, h2, h3, .font-display {
+    font-family: 'Outfit', sans-serif;
+    letter-spacing: -0.03em;
+}
+
+.reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 1s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.reveal.active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    background: var(--bg-main);
+    color: #94a3b8; /* slate-400 */
+    overflow-x: hidden;
+    line-height: 1.6;
+}
+
+/* Compact Utilities */
+.table-compact :is(th, td) {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    font-size: 0.75rem !important;
+}
+
+.text-cap {
+    text-transform: capitalize !important;
+    letter-spacing: normal !important;
+}
+
+.compact-card {
+    padding: 1.5rem !important;
+}
+
+.shadow-cyber {
+    box-shadow: 0 10px 40px rgba(14, 165, 233, 0.25);
+}
+
+/* Custom Selection */
+::selection {
+    background: rgba(14, 165, 233, 0.3);
+    color: white;
+}
+
+/* NProgress Customization */
+#nprogress .bar {
+    background: #38bdf8 !important;
+    height: 3px !important;
+    box-shadow: 0 0 10px #38bdf8, 0 0 5px #38bdf8;
+}
+
+#nprogress .spinner-icon {
+    border-top-color: #38bdf8 !important;
+    border-left-color: #38bdf8 !important;
+}

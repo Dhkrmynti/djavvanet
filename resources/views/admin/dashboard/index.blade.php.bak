@@ -1,0 +1,422 @@
+@extends('admin.layouts.app')
+
+@section('title', 'Dashboard')
+
+@push('styles')
+<style>
+  @keyframes pulse-green {
+    0% { transform: scale(0.8); opacity: 0.5; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+    70% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 0 4px rgba(34, 197, 94, 0); }
+    100% { transform: scale(0.8); opacity: 0.5; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+  }
+  .dot-online {
+    width: 6px;
+    height: 6px;
+    background-color: #22c55e;
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse-green 2s infinite;
+  }
+  
+  /* Mikrotik Style Modals (Centered but Sharp) */
+  #detail-overlay{transition:opacity .2s ease}
+  #detail-modal-panel{transition:transform .3s ease-in-out}
+  .detail-open #detail-overlay{opacity:1;pointer-events:auto}
+  .detail-open #detail-modal-panel{transform:scale(1); opacity: 1; pointer-events: auto;}
+  .detail-open #detail-modal-container{pointer-events:auto}
+
+  .dataTables_paginate {
+    margin: 4px 0 0 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    gap: 2px !important;
+    line-height: normal !important;
+  }
+  .dataTables_paginate .paginate_button {
+    padding: 0 8px !important;
+    height: 22px !important;
+    min-width: 22px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    border: 1px solid var(--border-main) !important;
+    background: var(--bg-page) !important;
+    color: var(--text-main) !important;
+    font-size: 10px !important;
+    font-weight: bold !important;
+    border-radius: 2px !important;
+    cursor: pointer !important;
+    transition: all 0.1s !important;
+    margin: 0 !important;
+    text-decoration: none !important;
+    vertical-align: middle !important;
+  }
+  .dataTables_paginate .ellipsis {
+    padding: 0 4px !important;
+    color: #94a3b8 !important;
+    font-weight: bold !important;
+    font-size: 10px !important;
+    display: inline-flex !important;
+    align-items: flex-end !important;
+    height: 22px !important;
+  }
+  .dataTables_paginate .paginate_button:hover {
+    background: var(--nav-hover) !important;
+    border-color: #94a3b8 !important;
+    color: var(--text-active) !important;
+  }
+  .dataTables_paginate .paginate_button.current {
+    background: #3b82f6 !important;
+    border-color: #2563eb !important;
+    color: white !important;
+  }
+  .dataTables_paginate .paginate_button.disabled {
+    opacity: 0.5 !important;
+    cursor: default !important;
+  }
+</style>
+@endpush
+
+@section('content')
+    <!-- Page Title Bar / Date Filter -->
+    <div class="bg-[var(--bg-card)] border border-[var(--border-main)] px-3 py-1.5 flex items-center justify-between rounded-sm shadow-sm shrink-0 mb-1 transition-colors">
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 text-xs">
+          <input type="text" value="{{ now()->startOfMonth()->format('m/d/Y') }}" class="border border-[var(--border-main)] rounded-sm px-2 py-0.5 text-center w-24 font-bold bg-[var(--bg-page)] text-[var(--text-main)] outline-none">
+          <span class="text-[var(--text-muted)]">—</span>
+          <input type="text" value="{{ now()->endOfMonth()->format('m/d/Y') }}" class="border border-[var(--border-main)] rounded-sm px-2 py-0.5 text-center w-24 font-bold bg-[var(--bg-page)] text-[var(--text-main)] outline-none">
+        </div>
+        <button class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-[11px] font-bold shadow-sm transition-all active:scale-95">Filter Waktu</button>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button class="bg-[var(--bg-card)] border border-[var(--border-main)] hover:bg-[var(--nav-hover)] px-2 py-1 rounded shadow-sm text-red-700 dark:text-red-400 font-bold flex items-center gap-1 text-[10px] uppercase">
+          <svg class="w-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg> PDF
+        </button>
+        <button class="bg-[var(--bg-card)] border border-[var(--border-main)] hover:bg-[var(--nav-hover)] px-2 py-1 rounded shadow-sm text-green-700 dark:text-green-400 font-bold flex items-center gap-1 text-[10px] uppercase">
+          <svg class="w-3" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg> Excel
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Activity Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-2 flex-1 min-h-0">
+      
+      <!-- Left Column: Recent Activity (5 cols) -->
+      <div class="lg:col-span-5 flex flex-col border border-[var(--border-main)] rounded-sm bg-[var(--bg-card)] overflow-hidden shadow-sm transition-colors">
+        <div class="bg-[var(--bg-table-head)] border-b border-[var(--border-main)] px-3 py-1.5 flex items-center justify-between shrink-0 transition-colors">
+          <h2 class="text-[11px] font-black text-[var(--text-muted)] tracking-wider">Status Penagihan (10 Data terakhir)</h2>
+          <span class="text-[9px] font-bold text-blue-600 dark:text-white bg-blue-50 dark:bg-blue-900/30 px-1.5 rounded-sm border border-blue-200 dark:border-blue-800">Live Feed</span>
+        </div>
+        <div class="flex-1 overflow-auto">
+          <table class="w-full border-collapse tbl tbl-compact text-[10px]">
+            <thead class="bg-[var(--bg-table-head)] border-b border-[var(--border-main)] sticky top-0 transition-colors">
+              <tr class="text-left text-[var(--text-muted)] font-bold uppercase tracking-tighter">
+                <th class="">Identitas & No. Tagihan</th>
+                <th class="">Tanggal</th>
+                <th class="">Status</th>
+                <th class="text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[var(--border-sub)]">
+              @foreach($invoices as $i => $inv)
+              @php $rowBg = $i % 2 === 0 ? 'bg-[var(--bg-table-even)]' : 'bg-[var(--bg-table-odd)]'; @endphp
+              <tr class="{{ $rowBg }} transition-colors cursor-pointer group hover:bg-[var(--nav-hover)]" data-json="{{ json_encode($inv->load('customer.package')) }}">
+                <td class="py-1">
+                  <div class="flex flex-col leading-[1.1]">
+                    <span class="text-[var(--text-muted)] italic text-[9px]">{{ $inv->customer->full_name ?? 'N/A' }}</span>
+                    <span class="font-bold text-blue-700 dark:text-white text-[10.5px]">{{ $inv->invoice_number }}</span>
+                  </div>
+                </td>
+                <td class="text-[var(--text-muted)] align-middle tabular-nums">{{ $inv->created_at->format('d M y') }}</td>
+                <td class="align-middle">
+                   @if($inv->status == 'paid')
+                     <span class="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-sm font-bold text-[9px] border border-green-200 dark:border-green-800">Lunas</span>
+                   @else
+                     <span class="bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400 px-1.5 py-0.5 rounded-sm font-bold text-[9px] border border-orange-200 dark:border-orange-800">{{ ucfirst($inv->status) }}</span>
+                   @endif
+                </td>
+                <td class="text-center align-middle">
+                  <button class="text-blue-600 dark:text-white font-bold hover:underline py-1 px-2" onclick="openInvoiceDetail(this.closest('tr'))">Detail</button>
+                </td>
+              </tr>
+              @endforeach
+            </tbody>
+          </table>
+        </div>
+        <div class="bg-[var(--bg-table-head)] border-t border-[var(--border-main)] px-3 py-1.5 flex justify-between items-center text-[10px] shrink-0 transition-colors">
+          <span class="font-bold text-green-700 dark:text-green-400 uppercase tracking-tighter">Lunas (Summary)</span>
+          <span class="font-black text-[var(--text-main)] text-[12px]">Rp {{ number_format($invoices->where('status', 'paid')->sum('total_amount'), 0, ',', '.') }}</span>
+        </div>
+      </div>
+
+      <!-- Right Column: Mikrotik Status (7 cols) -->
+      <div class="lg:col-span-7 flex flex-col border border-[var(--border-main)] rounded-sm bg-[var(--bg-card)] overflow-hidden shadow-sm transition-colors">
+        <div class="bg-[var(--bg-table-head)] border-b border-[var(--border-main)] px-3 py-1.5 flex items-center justify-between shrink-0 transition-colors">
+          <h2 class="text-[11px] font-black text-[var(--text-muted)] tracking-wider">Koneksi Mikrotik Aktif</h2>
+          <div class="flex gap-1.5">
+            <button class="bg-[var(--bg-card)] border border-[var(--border-main)] hover:bg-[var(--nav-hover)] px-2 py-0.5 rounded text-[10px] text-blue-700 dark:text-white font-bold shadow-sm active:scale-95 transition-all">Refresh & Kelola</button>
+          </div>
+        </div>
+        
+        <!-- Table Toolbar -->
+        <div class="px-2 py-1.5 bg-[var(--bg-page)] border-b border-[var(--border-main)] flex items-center justify-between shrink-0 transition-colors">
+           <div class="flex items-center gap-4">
+             <div class="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)] group">
+             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+             <span class="text-[9px] font-black uppercase tracking-tighter">Live Feed</span>
+          </div>
+             <div class="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)]">
+               <span class="text-[9px] font-black">Tampil</span>
+               <select id="mikrotik-length" class="border border-[var(--border-main)] bg-[var(--bg-card)] px-1 py-0.5 rounded-sm outline-none font-bold text-[var(--text-main)]">
+                 <option value="50">50</option>
+                 <option value="100">100</option>
+               </select>
+             </div>
+           </div>
+           <div class="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)]">
+             <span class="text-[9px] font-black uppercase">Cari:</span>
+             <input type="text" id="mikrotik-search" class="border border-[var(--border-main)] bg-[var(--bg-card)] px-2 py-0.5 rounded-sm outline-none w-32 focus:w-48 transition-all text-[var(--text-main)]">
+           </div>
+        </div>
+
+        <div class="flex-1 overflow-auto bg-[var(--bg-table-even)] transition-colors">
+          <table id="mikrotik-table" class="w-full border-collapse tbl tbl-compact text-[10px]">
+            <thead class="bg-[var(--bg-table-head)] border-b border-[var(--border-main)] sticky top-0 transition-colors">
+              <tr class="text-[var(--text-muted)] font-black uppercase text-[9px] tracking-tighter">
+                <th class="text-center w-8 px-2">#</th>
+                <th class="">Username</th>
+                <th class="">Profile</th>
+                <th class="">Status</th>
+                <th class="text-center">Online</th>
+                <th class="text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Data Tables Render -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="bg-[var(--bg-table-head)] border-t border-[var(--border-main)] px-2 py-1 flex justify-between items-center text-[10px] text-[var(--text-muted)] shrink-0 transition-colors">
+          <div class="flex items-center gap-2">
+            <span class="text-[9px] font-bold uppercase">Tampil</span>
+            <select id="mikrotik-length-bottom" onchange="$('#mikrotik-length').val(this.value).trigger('change')" class="border border-[var(--border-main)] bg-[var(--bg-card)] px-1 py-0.5 rounded-sm outline-none font-bold text-[var(--text-main)]">
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2">
+             <button onclick="$('#mikrotik-table').DataTable().ajax.reload()" class="px-3 py-1 border border-blue-600 bg-blue-600 text-white rounded-sm text-[9px] font-bold uppercase transition-all active:scale-95">Refresh Data</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- INVOICE DETAIL MODAL (Sharp High-Density Style) -->
+    <div id="detail-modal-container" class="fixed inset-0 z-[100] flex items-center justify-center p-4 pointer-events-none transition-all duration-300">
+      <div id="detail-overlay" onclick="closeInvoiceDetail()" class="absolute inset-0 bg-slate-900/60 opacity-0 pointer-events-none transition-opacity"></div>
+      <div id="detail-modal-panel" class="relative w-full max-w-lg bg-white dark:bg-slate-900 shadow-2xl border border-slate-300 rounded-sm flex flex-col scale-95 opacity-0 pointer-events-none transition-all duration-200 overflow-hidden text-slate-800">
+        <!-- Modal Header -->
+        <div class="border-b border-slate-200 dark:border-slate-800 p-2 flex items-center justify-between bg-white dark:bg-slate-800">
+          <h2 class="text-[12px] font-bold text-blue-800 dark:text-white">Detail Tagihan — <span id="det-inv-number-title" class="font-mono">...</span></h2>
+          <button onclick="closeInvoiceDetail()" class="text-blue-800 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-700 p-0.5 rounded transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="p-0 bg-white dark:bg-slate-900">
+           <div class="grid grid-cols-2 text-[10.5px]">
+              <!-- Row 1 -->
+              <div class="p-2 border-r border-b border-slate-100 dark:border-slate-800">
+                 <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">No. Invoice</div>
+                 <div class="font-bold text-[11px] font-mono leading-none" id="det-inv-number">...</div>
+              </div>
+              <div class="p-2 border-b border-slate-100 dark:border-slate-800">
+                 <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">Status</div>
+                 <div id="det-status" class="leading-none">...</div>
+              </div>
+              <!-- Row 2 -->
+              <div class="p-2 border-r border-b border-slate-100 dark:border-slate-800">
+                 <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">Nama Pelanggan</div>
+                 <div class="font-bold text-[11px] leading-none" id="det-customer-name">...</div>
+              </div>
+              <div class="p-2 border-b border-slate-100 dark:border-slate-800">
+                 <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">ID Pelanggan</div>
+                 <div class="font-bold text-[11px] leading-none" id="det-customer-code">...</div>
+              </div>
+              <!-- Row 3 -->
+              <div class="p-2 border-r border-b border-slate-100 dark:border-slate-800">
+                 <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">Periode Tagihan</div>
+                 <div class="font-bold leading-none" id="det-period">...</div>
+              </div>
+              <div class="p-2 border-b border-slate-100 dark:border-slate-800">
+                 <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">Jatuh Tempo</div>
+                 <div class="font-bold text-red-600 leading-none" id="det-due-date">...</div>
+              </div>
+              <!-- Row 4 -->
+              <div class="p-2 border-r border-b border-slate-100 dark:border-slate-800">
+                 <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">Paket / Profile</div>
+                 <div class="font-bold leading-none" id="det-package">...</div>
+              </div>
+              <div class="p-2 border-b border-slate-100 dark:border-slate-800">
+                 <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">Kontak / WA</div>
+                 <div class="font-bold leading-none" id="det-whatsapp">...</div>
+              </div>
+              <!-- Row 5 -->
+              <div class="p-2 border-r border-b border-slate-100 dark:border-slate-800">
+                 <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">Total Tagihan</div>
+                 <div class="font-black text-[13px] text-slate-900 dark:text-white leading-none" id="det-total-amount">...</div>
+              </div>
+              <div class="p-2 border-b border-slate-100 dark:border-slate-800">
+                 <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">Metode Bayar</div>
+                 <div class="italic text-slate-500 leading-none" id="det-payment-method">Transfer (VA)</div>
+              </div>
+              <!-- Row 6: Address Full Width -->
+              <div class="col-span-2 p-2 border-b border-slate-100 dark:border-slate-800">
+                 <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">Alamat</div>
+                 <div class="text-slate-600 leading-tight" id="det-address">...</div>
+              </div>
+           </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="bg-slate-50 dark:bg-slate-800 px-3 py-2 flex justify-end gap-1.5 border-t border-slate-200 dark:border-slate-700">
+           <button class="px-3 py-1 border border-blue-600 text-blue-600 rounded-sm font-bold text-[10px] hover:bg-blue-50">Cetak</button>
+           <button class="px-3 py-1 border border-orange-500 text-orange-500 rounded-sm font-bold text-[10px] hover:bg-orange-50">Edit</button>
+           <button onclick="closeInvoiceDetail()" class="px-3 py-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-sm font-bold text-[10px] hover:bg-slate-100">Tutup</button>
+        </div>
+      </div>
+    </div>
+@endsection
+
+@push('scripts')
+<script>
+    $(document).ready(function() {
+        const table = $('#mikrotik-table').DataTable({
+            processing: true,
+            serverSide: false,
+            ajax: '{{ route("admin.dashboard.mikrotik_data") }}',
+            columns: [
+                { data: null, render: (d, t, r, meta) => meta.row + 1, className: 'text-center font-mono text-[var(--text-muted)]' },
+                { data: 'name', className: 'font-bold text-[var(--text-main)]' },
+                { data: 'profile', className: '', render: d => `<span class="bg-[var(--bg-page)] text-[var(--text-muted)] px-2 py-0.5 rounded-sm border border-[var(--border-main)] font-mono text-[9px]">${d}</span>` },
+                { data: 'status', orderable: false, className: '' },
+                { data: 'online', orderable: false, className: 'text-center' },
+                { data: 'action', orderable: false, className: 'text-center' }
+            ],
+            dom: 'rtp',
+            paging: true,
+            pageLength: 50,
+            ordering: true,
+            info: false,
+            language: {
+                zeroRecords: "Tidak ada data",
+                paginate: {
+                    previous: "Prev",
+                    next: "Next"
+                }
+            },
+            createdRow: function(row, data, dataIndex) {
+                 $(row).addClass('hover:bg-[var(--nav-hover)] transition-colors group');
+            }
+        });
+
+        $('#mikrotik-search').on('keyup', function() {
+            table.search(this.value).draw();
+        });
+
+        $('#mikrotik-length').on('change', function() {
+            table.page.len(this.value).draw();
+        });
+
+        window.filterPelanggan = function(val) {
+        table.search(val).draw();
+      };
+    });
+
+    function toggleActionMenu(btn) {
+      const dropdown = $(btn).next('.action-dropdown');
+      const isShowing = dropdown.hasClass('show');
+      $('.action-dropdown.show').removeClass('show');
+      if (!isShowing) dropdown.addClass('show');
+      if(window.event) window.event.stopPropagation();
+    }
+ 
+    $(document).on('click', () => {
+      $('.action-dropdown.show').removeClass('show');
+    });
+
+    function disconnectUser(name) {
+      if(!confirm(`Putus sesi ${name}?`)) return;
+      $.post('{{ route("admin.settings.mikrotik.disconnect") }}', { _token: '{{ csrf_token() }}', username: name })
+       .done(res => { alert(res.message || 'Sesi diputuskan'); $('#mikrotik-table').DataTable().ajax.reload(); })
+       .fail(err => alert('Gagal: ' + (err.responseJSON?.error || 'Unknown error')));
+    }
+
+    function toggleUser(name, action) {
+      if(!confirm(`${action === 'enable' ? 'Aktifkan' : 'Nonaktifkan'} user ${name}?`)) return;
+      $.post('{{ route("admin.settings.mikrotik.toggle") }}', { _token: '{{ csrf_token() }}', username: name, action: action })
+       .done(res => { alert(res.message || 'Status diperbarui'); $('#mikrotik-table').DataTable().ajax.reload(); })
+       .fail(err => alert('Gagal: ' + (err.responseJSON?.error || 'Unknown error')));
+    }
+
+    function isolirUser(name) {
+      if(!confirm(`Isolir user ${name}?`)) return;
+      $.post('{{ route("admin.settings.mikrotik.isolir") }}', { _token: '{{ csrf_token() }}', username: name })
+       .done(res => { alert(res.message || 'User diisolir'); $('#mikrotik-table').DataTable().ajax.reload(); })
+       .fail(err => alert('Gagal: ' + (err.responseJSON?.error || 'Unknown error')));
+    }
+
+    function restoreUser(name) {
+      if(!confirm(`Buka isolir user ${name}?`)) return;
+      $.post('{{ route("admin.settings.mikrotik.restore") }}', { _token: '{{ csrf_token() }}', username: name })
+       .done(res => { alert(res.message || 'Isolir dibuka'); $('#mikrotik-table').DataTable().ajax.reload(); })
+       .fail(err => alert('Gagal: ' + (err.responseJSON?.error || 'Unknown error')));
+    }
+
+    function openInvoiceDetail(tr) {
+      if(!tr || !tr.dataset.json) return;
+      try {
+        const data = JSON.parse(tr.dataset.json);
+        const customer = data.customer || {};
+        const package = customer.package || {};
+
+        $('#det-inv-number-title').text(data.invoice_number);
+        $('#det-inv-number').text(data.invoice_number);
+        $('#det-customer-name').text(customer.full_name || 'N/A');
+        $('#det-customer-code').text(customer.customer_code || 'N/A');
+        
+        let pStart = data.period_start ? new Date(data.period_start) : new Date();
+        $('#det-period').text(pStart.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }));
+        
+        let dDate = data.due_date ? new Date(data.due_date) : null;
+        $('#det-due-date').text(dDate ? dDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-');
+        
+        $('#det-package').text(`${package.name || '-'} (${customer.username || '-'})`);
+        $('#det-whatsapp').text(customer.whatsapp_number || '-');
+        $('#det-total-amount').text('Rp ' + parseInt(data.total_amount).toLocaleString('id-ID'));
+        $('#det-address').text(customer.address || '-');
+
+        const statusContainer = $('#det-status');
+        if (data.status === 'paid') {
+           statusContainer.html('<span class="badge-up">Sudah Bayar</span>');
+        } else {
+           statusContainer.html('<span class="badge-warn">Belum Bayar</span>');
+        }
+
+        $('body').addClass('detail-open');
+      } catch(e) {
+        console.error('JSON Parse Error', e);
+      }
+    }
+
+    function closeInvoiceDetail() {
+      $('body').removeClass('detail-open');
+    }
+</script>
+@endpush
