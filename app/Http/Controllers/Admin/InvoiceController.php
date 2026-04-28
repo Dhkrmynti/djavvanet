@@ -187,7 +187,9 @@ class InvoiceController extends Controller
 
     public function sendBulkWhatsApp(Request $request, WhatsAppService $waService)
     {
-        $query = Invoice::with('customer')->where('status', 'unpaid');
+        $query = Invoice::with('customer')
+            ->where('status', 'unpaid')
+            ->where('is_wa_sent', false);
 
         if ($request->filled('period')) {
             $parts = explode('-', $request->period);
@@ -222,6 +224,10 @@ class InvoiceController extends Controller
             $message = $this->buildWhatsAppMessage($invoice);
 
             if ($waService->sendMessage($customer->whatsapp_number, $message)) {
+                $invoice->update([
+                    'is_wa_sent' => true,
+                    'wa_sent_at' => now()
+                ]);
                 $count++;
             } else {
                 $invalid++;
@@ -314,6 +320,10 @@ class InvoiceController extends Controller
         $message = $this->buildWhatsAppMessage($invoice);
 
         if ($waService->sendMessage($customer->whatsapp_number, $message)) {
+            $invoice->update([
+                'is_wa_sent' => true,
+                'wa_sent_at' => now()
+            ]);
             return back()->with('success', 'Pesan WhatsApp berhasil dikirim.');
         }
 

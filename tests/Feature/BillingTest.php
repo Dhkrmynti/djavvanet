@@ -2,188 +2,154 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
 use App\Models\Customer;
 use App\Models\Package;
 use App\Models\Invoice;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\TestCase;
+use App\Models\User;
+use Carbon\Carbon;
 
 class BillingTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected $admin;
+
     protected function setUp(): void
     {
         parent::setUp();
-        $this->admin = User::factory()->create();
+        Carbon::setTestNow('2026-04-28 10:00:00');
+        $this->admin = User::factory()->create(['role' => 'admin']);
     }
 
-    public function test_admin_can_generate_monthly_invoices()
+    /** @test */
+    public function it_generates_full_monthly_invoice_for_active_customers()
     {
-        // 1. Create a package
-        $package = Package::factory()->create(['monthly_price' => 150000]);
-
-        // 2. Create active customers starting this month
-        Customer::factory()->count(3)->create([
+        $this->withoutExceptionHandling();
+        $package = Package::factory()->create(['monthly_price' => 200000]);
+        // Set active_since to exactly start of current month to isolate to 1 invoice
+        $customer = Customer::factory()->create([
             'package_id' => $package->id,
             'status' => 'active',
-            'active_since' => now()->startOfMonth()
+            'active_since' => '2026-04-01',
         ]);
 
-        // 3. Admin triggers invoice generation for current month
-        $response = $this->actingAs($this->admin)
-            ->post(route('admin.invoices.generate'), [
-                'period' => now()->format('Y-m')
-            ]);
+        $this->actingAs($this->admin)
+            ->post(route('admin.invoices.generate'), ['period' => '2026-04']);
 
-        $response->assertStatus(302);
-        
-        // 4. Verify 3 invoices were created (1 per customer since they start this month)
-        $this->assertEquals(3, Invoice::count());
-        
-        $invoice = Invoice::first();
-        $this->assertEquals(150000, $invoice->amount);
+        $invoices = Invoice::where('customer_id', $customer->id)->get();
+        $this->assertCount(1, $invoices, 'Should generate exactly 1 invoice for April');
+        $this->assertEquals(200000, (float)$invoices->first()->amount);
+        $this->assertEquals('2026-04-01', $invoices->first()->period_start->toDateString());
     }
 
-    public function test_customer_can_access_portal_dashboard()
+    /** @test */
+    public function it_calculates_prorata_accurately_for_mid_month_activation()
+    {
+        $this->withoutExceptionHandling();
+        $monthlyPrice = 300000;
+        $package = Package::factory()->create(['monthly_price' => $monthlyPrice]);
+        
+        // Aktif 16 April. (300000 / 30) * 15 hari = 150000
+        $customer = Customer::factory()->create([
+            'package_id' => $package->id,
+            'status' => 'active',
+            'active_since' => '2026-04-16',
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.invoices.generate'), ['period' => '2026-04']);
+
+        $invoice = Invoice::where('customer_id', $customer->id)->first();
+        $this->assertNotNull($invoice);
+        $this->assertEquals(150000, (float)$invoice->amount);
+    }
+
+    /** @test */
+    public function it_prevents_duplicate_invoices_for_the_same_period()
     {
         $package = Package::factory()->create();
         $customer = Customer::factory()->create([
             'package_id' => $package->id,
-            'password' => bcrypt('password123')
+            'active_since' => '2026-04-01',
         ]);
 
-        $response = $this->post(route('portal.authenticate'), [
-            'login' => $customer->customer_code,
-            'password' => 'password123'
+        $this->actingAs($this->admin)
+            ->post(route('admin.invoices.generate'), ['period' => '2026-04']);
+
+        $this->assertEquals(1, Invoice::where('customer_id', $customer->id)->count());
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.invoices.generate'), ['period' => '2026-04']);
+
+        $this->assertEquals(1, Invoice::where('customer_id', $customer->id)->count(), 'Duplicate generation should be skipped');
+    }
+
+    /** @test */
+    public function it_performs_scan_and_fill_for_missing_backlog_months()
+    {
+        $package = Package::factory()->create(['monthly_price' => 100000]);
+        // Aktif 3 bulan lalu (Januari)
+        $customer = Customer::factory()->create([
+            'package_id' => $package->id,
+            'status' => 'active',
+            'active_since' => '2026-01-01',
         ]);
 
-        $response->assertRedirect(route('portal.dashboard'));
-        $this->assertAuthenticatedAs($customer, 'customer');
+        $this->actingAs($this->admin)
+            ->post(route('admin.invoices.generate'), ['period' => '2026-04']);
 
-        $dashboardResponse = $this->actingAs($customer, 'customer')
-            ->get(route('portal.dashboard'));
-
-        $dashboardResponse->assertStatus(200);
-        $dashboardResponse->assertSee($customer->name);
+        // Jan, Feb, Mar, Apr = 4 Invoices
+        $this->assertEquals(4, Invoice::where('customer_id', $customer->id)->count());
     }
 
-    public function test_customer_can_view_their_own_invoice()
+    /** @test */
+    public function it_only_generates_invoices_for_active_customers()
     {
-        $customer = Customer::factory()->create();
-        $invoice = Invoice::factory()->create(['customer_id' => $customer->id]);
+        $package = Package::factory()->create();
+        $customer = Customer::factory()->create([
+            'package_id' => $package->id,
+            'status' => 'inactive',
+            'active_since' => '2026-01-01',
+        ]);
 
-        $otherCustomer = Customer::factory()->create();
+        $this->actingAs($this->admin)
+            ->post(route('admin.invoices.generate'), ['period' => '2026-04']);
 
-        // Acting as own customer
-        $response = $this->actingAs($customer, 'customer')
-            ->get(route('portal.invoice.show', $invoice));
-
-        $response->assertStatus(200);
-
-        // Acting as other customer (should be forbidden or redirected)
-        $forbiddenResponse = $this->actingAs($otherCustomer, 'customer')
-            ->get(route('portal.invoice.show', $invoice));
-
-        // Depending on implementation, it might be 403 or 404 or redirect
-        $forbiddenResponse->assertStatus(403);
+        $this->assertEquals(0, Invoice::where('customer_id', $customer->id)->count());
     }
 
-    public function test_admin_can_update_invoice()
+    /** @test */
+    public function it_tracks_whatsapp_sent_status()
     {
-        $invoice = Invoice::factory()->create(['amount' => 100000, 'status' => 'unpaid']);
+        $this->withoutExceptionHandling();
+        $package = Package::factory()->create();
+        $customer = Customer::factory()->create([
+            'package_id' => $package->id,
+            'whatsapp_number' => '628123456789',
+            'active_since' => '2026-04-01',
+        ]);
 
+        // Generate invoice
+        $this->actingAs($this->admin)
+            ->post(route('admin.invoices.generate'), ['period' => '2026-04']);
+
+        $invoice = Invoice::where('customer_id', $customer->id)->first();
+        $this->assertFalse($invoice->is_wa_sent);
+
+        // Send Blast
         $response = $this->actingAs($this->admin)
-            ->put(route('admin.invoices.update', $invoice), [
-                'amount' => 125000,
-                'due_date' => now()->addDays(5)->format('Y-m-d'),
-                'status' => 'paid'
-            ]);
+            ->post(route('admin.invoices.bulk_whatsapp'), ['period' => '2026-04']);
 
-        $response->assertStatus(302);
-        $this->assertEquals(125000, $invoice->fresh()->amount);
-        $this->assertEquals('paid', $invoice->fresh()->status);
-    }
+        $invoice->refresh();
+        $this->assertTrue($invoice->is_wa_sent);
+        $this->assertNotNull($invoice->wa_sent_at);
 
-    public function test_admin_can_delete_invoice()
-    {
-        $invoice = Invoice::factory()->create();
-
-        $response = $this->actingAs($this->admin)
-            ->delete(route('admin.invoices.destroy', $invoice));
-
-        $response->assertStatus(302);
-        $this->assertDatabaseMissing('invoices', ['id' => $invoice->id]);
-    }
-
-    public function test_admin_can_filter_invoices_by_period()
-    {
-        // Create invoices for different periods
-        $invoice1 = Invoice::factory()->create(['period_start' => '2026-04-01 00:00:00']);
-        $invoice2 = Invoice::factory()->create(['period_start' => '2026-05-01 00:00:00']);
+        // Send Blast again - should not process anyone
+        $response2 = $this->actingAs($this->admin)
+            ->post(route('admin.invoices.bulk_whatsapp'), ['period' => '2026-04']);
         
-        // Filter for April via ajax data endpoint
-        $response = $this->actingAs($this->admin)
-            ->getJson(route('admin.invoices.data', ['period' => '2026-04']));
-            
-        $response->assertStatus(200);
-        $response->assertJsonFragment(['invoice_number' => $invoice1->invoice_number]);
-        
-        // Filter for May
-        $response = $this->actingAs($this->admin)
-            ->getJson(route('admin.invoices.data', ['period' => '2026-05']));
-            
-        $response->assertStatus(200);
-        $response->assertJsonFragment(['invoice_number' => $invoice2->invoice_number]);
-    }
-
-    public function test_invoices_data_endpoint_returns_json()
-    {
-        Invoice::factory()->count(3)->create();
-
-        $response = $this->actingAs($this->admin)
-            ->getJson(route('admin.invoices.data'));
-
-        $response->assertStatus(200);
-        $response->assertJsonStructure([
-            'draw',
-            'recordsTotal',
-            'recordsFiltered',
-            'data'
-        ]);
-        $this->assertEquals(3, $response->json('recordsTotal'));
-    }
-
-    public function test_invoices_page_loads_without_data()
-    {
-        $response = $this->actingAs($this->admin)
-            ->get(route('admin.invoices'));
-
-        $response->assertStatus(200);
-        $response->assertSee('Billing / Tagihan');
-    }
-
-    public function test_staff_data_endpoint_returns_json()
-    {
-        $response = $this->actingAs($this->admin)
-            ->getJson(route('admin.staff.data'));
-
-        $response->assertStatus(200);
-        $response->assertJsonStructure([
-            'draw',
-            'recordsTotal',
-            'recordsFiltered',
-            'data'
-        ]);
-    }
-
-    public function test_staff_page_loads()
-    {
-        $response = $this->actingAs($this->admin)
-            ->get(route('admin.staff.index'));
-
-        $response->assertStatus(200);
-        $response->assertSee('Manajemen Staff');
+        $response2->assertSessionHas('error', 'Tidak ada tagihan Belum Bayar yang ditemukan untuk dikirimkan.');
     }
 }

@@ -104,6 +104,7 @@
               <th>Nama Pelanggan</th>
               <th>Periode</th>
               <th class="text-right">Total</th>
+              <th class="text-center">WA</th>
               <th class="text-center">Status</th>
               <th class="text-center">Aksi</th>
             </tr>
@@ -332,6 +333,22 @@
             render: function(data) {
               const amount = Number(data || 0);
               return `Rp ${amount.toLocaleString('id-ID')}`;
+            }
+          },
+          {
+            data: 'is_wa_sent',
+            name: 'is_wa_sent',
+            className: 'text-center',
+            render: function(data, type, row) {
+               if (data) {
+                 const dateStr = row.wa_sent_at ? row.wa_sent_at.split('T')[0] : '';
+                 const timeStr = row.wa_sent_at ? row.wa_sent_at.split('T')[1].substring(0, 5) : '';
+                 return `<div class="flex flex-col items-center leading-tight">
+                            <span class="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1 py-0.5 rounded-[2px] text-[8px] font-bold border border-green-200 dark:border-green-800 uppercase tracking-tighter">Terkirim</span>
+                            <span class="text-[7px] text-slate-400 dark:text-slate-500 mt-0.5 font-mono">${dateStr} ${timeStr}</span>
+                         </div>`;
+               }
+               return '<span class="bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 px-1 py-0.5 rounded-[2px] text-[8px] font-bold border border-slate-200 dark:border-slate-700 uppercase tracking-tighter">Belum</span>';
             }
           },
           {

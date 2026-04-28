@@ -20,7 +20,8 @@ class Invoice extends Model
         'tax_amount',
         'total_amount',
         'due_date',
-        'status',
+        'is_wa_sent',
+        'wa_sent_at',
         'notes',
         'payment_hash',
     ];
@@ -29,6 +30,8 @@ class Invoice extends Model
         'period_start'     => 'date',
         'period_end'       => 'date',
         'due_date'         => 'date',
+        'is_wa_sent'       => 'boolean',
+        'wa_sent_at'       => 'datetime',
         'amount'           => 'decimal:2',
         'installation_fee' => 'decimal:2',
         'tax_amount'       => 'decimal:2',
