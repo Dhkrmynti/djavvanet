@@ -24,6 +24,10 @@ class Invoice extends Model
         'wa_sent_at',
         'notes',
         'payment_hash',
+        'status',
+        'paid_at',
+        'payment_method',
+        'payment_channel',
     ];
 
     protected $casts = [

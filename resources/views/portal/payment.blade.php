@@ -80,7 +80,10 @@
                             $calculatedFee = $fee->calculateFee($invoice->total_amount);
                             $totalWithFee = $invoice->total_amount + $calculatedFee;
                         @endphp
-                        <a href="{{ route('payment.checkout', ['hash' => $invoice->payment_hash, 'fee_id' => $fee->id]) }}" 
+                        <form method="POST" action="{{ route('payment.checkout', ['hash' => $invoice->payment_hash]) }}">
+                            @csrf
+                            <input type="hidden" name="fee_id" value="{{ $fee->id }}">
+                            <button type="submit"
                            class="w-full h-14 flex items-center justify-between px-5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-brand-500/30 text-white rounded-2xl text-[10px] font-bold uppercase tracking-wider active:scale-[0.98] transition-all group">
                             <div class="flex flex-col items-start leading-tight">
                                 <span class="group-hover:text-brand-400 transition-colors">{{ $fee->name }}</span>
@@ -90,7 +93,8 @@
                                 <span class="text-slate-200 font-black">Rp{{ number_format($totalWithFee, 0, ',', '.') }}</span>
                                 <svg class="h-3 w-3 text-slate-600 group-hover:text-brand-400 group-hover:translate-x-1 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
                             </div>
-                        </a>
+                            </button>
+                        </form>
                         @endforeach
 
                         <div class="pt-6 flex items-center justify-center gap-6 opacity-30 grayscale hover:grayscale-0 transition-all duration-500">

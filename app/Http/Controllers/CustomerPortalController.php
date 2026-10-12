@@ -22,7 +22,7 @@ class CustomerPortalController extends Controller
     public function authenticate(Request $request)
     {
         $request->validate([
-            'login'    => 'required|string',
+            'login' => 'required|string|max:255',
         ]);
 
         $customer = Customer::where('username', $request->login)
@@ -30,10 +30,13 @@ class CustomerPortalController extends Controller
             ->first();
 
         if (!$customer) {
-            return back()->withErrors(['login' => 'ID Pelanggan atau Username tidak ditemukan.']);
+            return back()
+                ->withErrors(['login' => 'ID pelanggan atau username tidak ditemukan.'])
+                ->onlyInput('login');
         }
 
         auth()->guard('customer')->login($customer);
+        $request->session()->regenerate();
 
         return redirect()->route('portal.dashboard');
     }
@@ -103,9 +106,12 @@ class CustomerPortalController extends Controller
         return $pdf->download($filename);
     }
 
-    public function logout()
+    public function logout(Request $request)
     {
         auth()->guard('customer')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
         return redirect()->route('portal.login')->with('success', 'Anda telah keluar dari portal.');
     }
 }

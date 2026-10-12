@@ -6,6 +6,7 @@ use App\Models\Invoice;
 use App\Models\XenditSetting;
 use App\Services\XenditService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
@@ -36,36 +37,51 @@ class PaymentController extends Controller
 
     public function checkout(Request $request, $hash)
     {
+        $validated = $request->validate([
+            'fee_id' => ['required', 'integer', 'exists:xendit_fees,id'],
+        ]);
+
         $invoice = Invoice::where('payment_hash', $hash)->firstOrFail();
 
         if ($invoice->status !== 'unpaid' && $invoice->status !== 'overdue') {
             return back()->with('error', 'Tagihan ini sudah terbayar atau tidak valid.');
         }
 
-        $feeAmount = 0;
-        $feeName = 'Biaya Admin';
-        $paymentMethodCode = null;
+        $fee = \App\Models\XenditFee::query()
+            ->whereKey($validated['fee_id'])
+            ->where('is_active', true)
+            ->first();
 
-        if ($request->has('fee_id')) {
-            $fee = \App\Models\XenditFee::find($request->fee_id);
-            if ($fee) {
-                $feeAmount = $fee->calculateFee($invoice->total_amount);
-                $feeName = 'Biaya Admin (' . $fee->name . ')';
-                $paymentMethodCode = $fee->code;
-            }
+        if (!$fee) {
+            return back()->with('error', 'Metode pembayaran tidak tersedia. Silakan pilih metode lain.');
         }
 
+        $feeAmount = $fee->calculateFee($invoice->total_amount);
+        $feeName = 'Biaya Admin (' . $fee->name . ')';
+        $paymentMethodCode = $fee->code;
+
         try {
-            $xenditInvoice = $this->xenditService->createInvoice($invoice, $feeName, $feeAmount, $paymentMethodCode);
-            return redirect($xenditInvoice['invoice_url']);
-        } catch (\Exception $e) {
+            $cacheKey = "xendit_checkout:{$invoice->id}:{$fee->id}";
+            $lock = Cache::lock("{$cacheKey}:lock", 15);
+
+            $invoiceUrl = $lock->block(5, function () use ($cacheKey, $invoice, $feeName, $feeAmount, $paymentMethodCode) {
+                return Cache::remember($cacheKey, now()->addMinutes(10), function () use ($invoice, $feeName, $feeAmount, $paymentMethodCode) {
+                    $xenditInvoice = $this->xenditService->createInvoice($invoice, $feeName, $feeAmount, $paymentMethodCode);
+
+                    return $xenditInvoice['invoice_url']
+                        ?? throw new \RuntimeException('Xendit response did not contain an invoice URL.');
+                });
+            });
+
+            return redirect()->away($invoiceUrl);
+        } catch (\Throwable $e) {
             Log::error('Checkout failed', [
                 'invoice_id' => $invoice->id,
                 'invoice_number' => $invoice->invoice_number,
                 'payment_hash' => $hash,
                 'message' => $e->getMessage(),
             ]);
-            return back()->with('error', 'Gagal memproses pembayaran: ' . $e->getMessage());
+            return back()->with('error', 'Gagal memproses pembayaran. Silakan coba kembali beberapa saat lagi.');
         }
     }
 
@@ -74,7 +90,7 @@ class PaymentController extends Controller
         $xenditXToken = $request->header('x-callback-token');
         
         if (!$this->xenditService->validateCallbackToken($xenditXToken)) {
-            Log::warning('Invalid Xendit Callback Token', ['token' => $xenditXToken]);
+            Log::warning('Invalid Xendit callback token received.');
             return response()->json(['message' => 'Invalid token'], 403);
         }
 
@@ -90,15 +106,15 @@ class PaymentController extends Controller
 
             if ($invoiceId && $status === 'PAID') {
                 $invoice = Invoice::find($invoiceId);
-                if ($invoice && $invoice->status !== 'paid') {
+                if ($invoice && $invoice->status !== 'paid_gateway') {
                     $invoice->update([
-                        'status' => 'paid',
+                        'status' => 'paid_gateway',
                         'paid_at' => now(),
                         'payment_method' => $data['payment_method'] ?? 'XENDIT',
                         'payment_channel' => $data['payment_channel'] ?? 'ONLINE',
                     ]);
                     
-                    Log::info('Invoice marked as PAID via Xendit', ['invoice_id' => $invoiceId]);
+                    Log::info('Invoice marked as PAID_GATEWAY via Xendit', ['invoice_id' => $invoiceId]);
 
                     try {
                         $customer = $invoice->customer;

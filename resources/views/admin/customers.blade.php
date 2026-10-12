@@ -150,6 +150,7 @@
               <th>Paket</th>
               <th>Profile</th>
               <th class="text-right">Harga</th>
+              <th class="text-center">Aktivasi</th>
               <th class="text-center">Status</th>
               <th class="text-center">Aksi</th>
             </tr>
@@ -274,15 +275,21 @@
                              Tanggal 1 (Fixed)
                           </div>
                           <input type="hidden" name="billing_cycle" value="1">
+
+
+                    <div class="space-y-1" id="active-since-field-group">
+                      <label class="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tight">TANGGAL AKTIF / AKTIVASI *</label>
+                      <input type="date" name="active_since" id="input_active_since" required class="w-full bg-[#f8fafc] dark:bg-slate-800 border border-[var(--border-main)] rounded-sm p-1.5 text-xs focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 dark:text-slate-200">
+                      <p class="text-[9px] text-slate-400 mt-0.5">Digunakan untuk menentukan perhitungan tagihan (Prorata).</p>
+                    </div>
                           <select name="unused_billing_cycle" class="hidden">
                             <option value="">-- Pilih tanggal --</option>
                             @for($i=1; $i<=28; $i++)
                              <option value="{{ $i }}">Tanggal {{ $i }}</option>
                             @endfor
                          </select>
-                       </div>
-                   </div>
-
+                        </div>
+                    </div>
                    <div class="space-y-1" id="status-field-group">
                      <label class="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tight">STATUS PELANGGAN *</label>
                      <select name="status" class="w-full bg-[#f8fafc] dark:bg-slate-800 border border-[var(--border-main)] rounded-sm p-1.5 text-xs focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 dark:text-slate-200">
@@ -330,8 +337,8 @@
                 <div class="text-[11px] font-bold text-slate-800 dark:text-slate-200" id="det-name">...</div>
               </div>
               <div class="p-2 border-b border-gray-200 dark:border-slate-800">
-                <label class="text-[9px] font-bold text-gray-400 uppercase block leading-tight">TANGGAL TAGIHAN</label>
-                <div class="text-[11px] font-bold text-slate-800 dark:text-slate-200" id="det-billing-date">...</div>
+                <label class="text-[9px] font-bold text-gray-400 uppercase block leading-tight">TANGGAL AKTIVASI</label>
+                <div class="text-[11px] font-bold text-blue-600 dark:text-blue-400" id="det-active-since">-</div>
               </div>
 
               <div class="p-2 border-r border-b border-gray-200 dark:border-slate-800">
@@ -514,6 +521,16 @@
             render: function(data) {
               const price = Number(data || 0);
               return `Rp ${price.toLocaleString('id-ID')}`;
+            }
+          },
+          { 
+            data: 'active_since', 
+            name: 'active_since', 
+            className: 'text-center font-mono text-[10px]',
+            render: function(data) {
+                if(!data) return '-';
+                const d = new Date(data);
+                return d.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
             }
           },
           {
@@ -699,6 +716,7 @@
         // Populate additional fields
         form.find('[name="status"]').val(data.status);
         $('#pppoe_profile').val(data.mikrotik_profile); // Note: name is mikrotik_profile_override but we use ID
+        form.find('[name="active_since"]').val(data.active_since ? data.active_since.split('T')[0] : '');
         
         $('#status-field-group').show();
         $('#code-error').addClass('hidden');
@@ -711,6 +729,7 @@
         methodField.val('POST');
         form[0].reset();
         $('#pppoe_profile').val('');
+        form.find('[name="active_since"]').val(new Date().toISOString().split('T')[0]);
         $('#status-field-group').hide();
         $('#customer-form').data('editing-id', '');
         $('#code-error').addClass('hidden');
@@ -861,6 +880,13 @@
       $('#det-price').text(data.package ? 'Rp ' + parseInt(data.package.monthly_price).toLocaleString('id-ID') + ' /bulan' : 'Rp 0 /bulan');
       $('#det-billing-date').text(data.billing_cycle ? 'Setiap tgl ' + data.billing_cycle + ' per bulan' : '-');
       
+      if (data.active_since) {
+          const d = new Date(data.active_since);
+          $('#det-active-since').text(d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }));
+      } else {
+          $('#det-active-since').text('-');
+      }
+
       const badgeContainer = $('#det-status-container');
       const status = data.status.toLowerCase();
       let badgeHtml = '';

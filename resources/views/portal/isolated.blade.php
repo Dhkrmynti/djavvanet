@@ -176,7 +176,7 @@
             </div>
         </div>
 
-        <a href="/login" class="btn">Cek Tagihan & Bayar Sekarang</a>
+        <a href="{{ route('portal.login') }}" class="btn">Cek Tagihan & Bayar Sekarang</a>
 
         <div class="footer">
             &copy; {{ date('Y') }} PT DJAVVA NETWORK SOLUTION — Reliable Internet Solution

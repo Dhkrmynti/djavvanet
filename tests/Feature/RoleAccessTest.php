@@ -95,4 +95,20 @@ class RoleAccessTest extends TestCase
         $response = $this->actingAs($this->staff)->get(route('admin.staff.index'));
         $response->assertRedirect(route('admin.dashboard.index'));
     }
+
+    public function test_staff_without_chat_permission_cannot_access_chat()
+    {
+        $response = $this->actingAs($this->staff)->get(route('admin.chat.index'));
+
+        $response->assertRedirect(route('admin.dashboard.index'));
+    }
+
+    public function test_staff_with_chat_permission_can_access_chat()
+    {
+        $this->staff->update(['permissions' => ['chat.manage']]);
+
+        $response = $this->actingAs($this->staff)->get(route('admin.chat.index'));
+
+        $response->assertStatus(200);
+    }
 }

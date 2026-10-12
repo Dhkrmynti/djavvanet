@@ -4,10 +4,10 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Admin\ChatController;
 use App\Http\Controllers\SupportChatController;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Cache;
 
 $staffDomain   = config('app.staff_domain', 'cm.djavva.net');
 $paymentDomain = config('app.payment_domain', 'payment.djavva.net');
+$isolatedDomain = config('app.isolated_domain', 'isolir.djavva.net');
 
 Route::domain($paymentDomain)->group(function () {
     Route::get('/', function () {
@@ -15,7 +15,7 @@ Route::domain($paymentDomain)->group(function () {
     });
 
     Route::get('/pay/{hash}', [\App\Http\Controllers\PaymentController::class, 'showPublicPayment'])->name('payment.public')->middleware('throttle:60,1');
-    Route::get('/pay/{hash}/checkout', [\App\Http\Controllers\PaymentController::class, 'checkout'])->name('payment.checkout')->middleware('throttle:20,1');
+    Route::post('/pay/{hash}/checkout', [\App\Http\Controllers\PaymentController::class, 'checkout'])->name('payment.checkout')->middleware('throttle:10,1');
 
     Route::get('/login', [\App\Http\Controllers\CustomerPortalController::class, 'login'])->name('portal.login')->middleware('throttle:10,1');
     Route::post('/login', [\App\Http\Controllers\CustomerPortalController::class, 'authenticate'])->name('portal.authenticate')->middleware('throttle:5,1');
@@ -24,26 +24,32 @@ Route::domain($paymentDomain)->group(function () {
         Route::get('/dashboard', [\App\Http\Controllers\CustomerPortalController::class, 'index'])->name('portal.dashboard');
         Route::get('/invoice/{invoice}', [\App\Http\Controllers\CustomerPortalController::class, 'showInvoice'])->name('portal.invoice.show');
         Route::get('/invoice/{invoice}/pdf', [\App\Http\Controllers\CustomerPortalController::class, 'downloadPdf'])->name('portal.invoice.pdf');
-        Route::post('/support/messages', [SupportChatController::class, 'customerSend'])->name('portal.support.messages');
-        Route::post('/support/{conversation}/read', [SupportChatController::class, 'customerRead'])->name('portal.support.read');
-        Route::post('/support/typing', [SupportChatController::class, 'customerTyping'])->name('portal.support.typing');
+        Route::post('/support/messages', [SupportChatController::class, 'customerSend'])->name('portal.support.messages')->middleware('throttle:30,1');
+        Route::post('/support/{conversation}/read', [SupportChatController::class, 'customerRead'])->name('portal.support.read')->middleware('throttle:60,1');
+        Route::post('/support/typing', [SupportChatController::class, 'customerTyping'])->name('portal.support.typing')->middleware('throttle:60,1');
         Route::post('/logout', [\App\Http\Controllers\CustomerPortalController::class, 'logout'])->name('portal.logout');
     });
+});
+
+Route::domain($isolatedDomain)->group(function () {
+    Route::get('/{any?}', function () {
+        return view('portal.isolated');
+    })->where('any', '.*')->name('portal.isolated');
 });
 
 Route::get('/portal/{any?}', function ($any = null) {
     $subdomain = config('app.payment_domain', 'payment.djavva.net');
     $path = $any ? '/' . $any : '/login';
     if ($any == 'dashboard') $path = '/dashboard';
-    return redirect('http://' . $subdomain . $path);
+    return redirect()->away('https://' . $subdomain . $path);
 })->where('any', '.*');
 
-Route::get('/pay/{hash}', [\App\Http\Controllers\PaymentController::class, 'showPublicPayment'])->name('payment.public.fallback');
-Route::get('/pay/{hash}/checkout', [\App\Http\Controllers\PaymentController::class, 'checkout'])->name('payment.checkout.fallback');
-Route::get('/support/bootstrap', [SupportChatController::class, 'publicBootstrap'])->name('support.public.bootstrap');
-Route::post('/support/start', [SupportChatController::class, 'publicStart'])->name('support.public.start');
-Route::post('/support/send', [SupportChatController::class, 'publicSend'])->name('support.public.send');
-Route::post('/support/typing', [SupportChatController::class, 'publicTyping'])->name('support.public.typing');
+Route::get('/pay/{hash}', [\App\Http\Controllers\PaymentController::class, 'showPublicPayment'])->name('payment.public.fallback')->middleware('throttle:60,1');
+Route::post('/pay/{hash}/checkout', [\App\Http\Controllers\PaymentController::class, 'checkout'])->name('payment.checkout.fallback')->middleware('throttle:10,1');
+Route::get('/support/bootstrap', [SupportChatController::class, 'publicBootstrap'])->name('support.public.bootstrap')->middleware('throttle:60,1');
+Route::post('/support/start', [SupportChatController::class, 'publicStart'])->name('support.public.start')->middleware('throttle:5,1');
+Route::post('/support/send', [SupportChatController::class, 'publicSend'])->name('support.public.send')->middleware('throttle:30,1');
+Route::post('/support/typing', [SupportChatController::class, 'publicTyping'])->name('support.public.typing')->middleware('throttle:60,1');
 
 Route::domain($staffDomain)->group(function () {
     Route::get('/', function () {
@@ -55,7 +61,7 @@ Route::domain($staffDomain)->group(function () {
     Route::post('/logout', [\App\Http\Controllers\Auth\AdminLoginController::class, 'logout'])->name('admin.logout');
 
     Route::middleware('auth')->group(function () {
-        Route::post('/customers/check-whatsapp', [AdminController::class, 'checkWhatsApp'])->name('admin.customers.check_whatsapp');
+        Route::post('/customers/check-whatsapp', [AdminController::class, 'checkWhatsApp'])->name('admin.customers.check_whatsapp')->middleware('permission:customers.whatsapp');
 
         Route::get('/dashboard', [\App\Http\Controllers\Admin\DashboardController::class, 'index'])->name('admin.dashboard.index');
         Route::middleware('permission:dashboard.view')->group(function() {
@@ -90,17 +96,20 @@ Route::domain($staffDomain)->group(function () {
 
         Route::get('/invoices', [\App\Http\Controllers\Admin\InvoiceController::class, 'index'])->name('admin.invoices')->middleware('permission:invoices.view');
         Route::get('/invoices/data', [\App\Http\Controllers\Admin\InvoiceController::class, 'invoicesData'])->name('admin.invoices.data')->middleware('permission:invoices.view');
+        Route::get('/invoices/export', [\App\Http\Controllers\Admin\InvoiceController::class, 'exportCsv'])->name('admin.invoices.export')->middleware('permission:invoices.view');
         Route::get('/invoices/{invoice}', [\App\Http\Controllers\Admin\InvoiceController::class, 'show'])->name('admin.invoices.show')->middleware('permission:invoices.view');
         Route::get('/invoices/{invoice}/pdf', [\App\Http\Controllers\Admin\InvoiceController::class, 'downloadPdf'])->name('admin.invoices.pdf')->middleware('permission:invoices.view');
 
-        Route::get('/chat', [ChatController::class, 'index'])->name('admin.chat.index');
-        Route::post('/chat/conversations', [ChatController::class, 'storeConversation'])->name('admin.chat.conversations.store');
-        Route::post('/chat/mark-all-read', [ChatController::class, 'markAllAsRead'])->name('admin.chat.mark_all_read');
-        Route::post('/chat/{conversation}/messages', [ChatController::class, 'storeMessage'])->name('admin.chat.messages.store');
-        Route::post('/chat/{conversation}/read', [ChatController::class, 'markAsRead'])->name('admin.chat.read');
-        Route::put('/chat/{conversation}', [ChatController::class, 'updateConversation'])->name('admin.chat.update');
-        Route::delete('/chat/{conversation}', [ChatController::class, 'destroyConversation'])->name('admin.chat.destroy');
-        Route::post('/chat/{conversation}/typing', [ChatController::class, 'typing'])->name('admin.chat.typing');
+        Route::middleware('permission:chat.manage')->group(function () {
+            Route::get('/chat', [ChatController::class, 'index'])->name('admin.chat.index');
+            Route::post('/chat/conversations', [ChatController::class, 'storeConversation'])->name('admin.chat.conversations.store');
+            Route::post('/chat/mark-all-read', [ChatController::class, 'markAllAsRead'])->name('admin.chat.mark_all_read');
+            Route::post('/chat/{conversation}/messages', [ChatController::class, 'storeMessage'])->name('admin.chat.messages.store');
+            Route::post('/chat/{conversation}/read', [ChatController::class, 'markAsRead'])->name('admin.chat.read');
+            Route::put('/chat/{conversation}', [ChatController::class, 'updateConversation'])->name('admin.chat.update');
+            Route::delete('/chat/{conversation}', [ChatController::class, 'destroyConversation'])->name('admin.chat.destroy');
+            Route::post('/chat/{conversation}/typing', [ChatController::class, 'typing'])->name('admin.chat.typing');
+        });
         
         Route::post('/invoices/{invoice}/whatsapp', [\App\Http\Controllers\Admin\InvoiceController::class, 'sendWhatsApp'])->name('admin.invoices.whatsapp')->middleware('permission:invoices.whatsapp');
         Route::post('/invoices/bulk-whatsapp', [\App\Http\Controllers\Admin\InvoiceController::class, 'sendBulkWhatsApp'])->name('admin.invoices.bulk_whatsapp')->middleware('permission:invoices.whatsapp');
@@ -120,11 +129,12 @@ Route::domain($staffDomain)->group(function () {
                 Route::post('/mikrotik/disconnect-user', [\App\Http\Controllers\Admin\ApiServerController::class, 'disconnectUser'])->name('admin.settings.mikrotik.disconnect');
                 Route::post('/mikrotik/isolir-user', [\App\Http\Controllers\Admin\ApiServerController::class, 'isolirUser'])->name('admin.settings.mikrotik.isolir');
                 Route::post('/mikrotik/restore-user', [\App\Http\Controllers\Admin\ApiServerController::class, 'restoreUser'])->name('admin.settings.mikrotik.restore');
+                Route::get('/mikrotik/data', [\App\Http\Controllers\Admin\ApiServerController::class, 'mikrotikData'])->name('admin.settings.mikrotik.data');
             });
             
-            Route::post('/mikrotik/check-id', [\App\Http\Controllers\AdminController::class, 'checkCustomerCode'])->name('admin.customers.check_id')->middleware('auth');
-            Route::get('/mikrotik/profiles', [\App\Http\Controllers\Admin\ApiServerController::class, 'getProfiles'])->name('admin.settings.mikrotik.profiles')->middleware('auth');
-            Route::get('/mikrotik/secrets', [\App\Http\Controllers\Admin\ApiServerController::class, 'listSecrets'])->name('admin.settings.mikrotik.secrets')->middleware('auth');
+            Route::post('/mikrotik/check-id', [\App\Http\Controllers\AdminController::class, 'checkCustomerCode'])->name('admin.customers.check_id')->middleware('permission:customers.create');
+            Route::get('/mikrotik/profiles', [\App\Http\Controllers\Admin\ApiServerController::class, 'getProfiles'])->name('admin.settings.mikrotik.profiles');
+            Route::get('/mikrotik/secrets', [\App\Http\Controllers\Admin\ApiServerController::class, 'listSecrets'])->name('admin.settings.mikrotik.secrets')->middleware('permission:settings.mikrotik');
 
             Route::middleware('permission:settings.xendit')->group(function() {
                 Route::get('/xendit', [\App\Http\Controllers\Admin\XenditSettingController::class, 'index'])->name('admin.settings.xendit');
@@ -147,9 +157,6 @@ Route::domain($staffDomain)->group(function () {
     });
 });
 
-Route::get('/internet-isolir', function () {
-    return view('portal.isolated');
-})->name('portal.isolated');
 
 Route::get('/', function () {
     $packages = \Illuminate\Support\Facades\Cache::rememberForever('active_packages', function () {

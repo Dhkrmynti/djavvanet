@@ -56,6 +56,7 @@ return [
 
     'payment_domain' => env('PAYMENT_DOMAIN', 'payment.djavva.net'),
     'staff_domain'   => env('STAFF_DOMAIN', 'cm.djavva.net'),
+    'isolated_domain' => env('ISOLATED_DOMAIN', 'isolir.djavva.net'),
 
     /*
     |--------------------------------------------------------------------------

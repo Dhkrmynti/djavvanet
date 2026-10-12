@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withSchedule(function (Schedule $schedule) {
+        $schedule->command('invoices:generate-monthly')->monthlyOn(1, '00:01');
         $schedule->command('invoices:check-overdue')->dailyAt('01:00');
         $schedule->command('customers:backup')->dailyAt('01:30')->withoutOverlapping();
     })

@@ -29,7 +29,7 @@ class InvoiceController extends Controller
             $parts = explode('-', $request->period);
             if (count($parts) === 2) {
                 $query->whereYear('period_start', $parts[0])
-                      ->whereMonth('period_start', $parts[1]);
+                    ->whereMonth('period_start', $parts[1]);
             }
         }
 
@@ -40,11 +40,25 @@ class InvoiceController extends Controller
             ->addColumn('customer_name', function (Invoice $inv) {
                 return $inv->customer->full_name ?? 'N/A';
             })
+            ->addColumn('customer_address', function (Invoice $inv) {
+                return $inv->customer->address ?? 'N/A';
+            })
             ->addColumn('period_label', function (Invoice $inv) {
                 return $inv->period_start ? Carbon::parse($inv->period_start)->translatedFormat('F Y') : 'N/A';
             })
             ->addColumn('raw_invoice', function (Invoice $inv) {
                 return $inv->load(['customer', 'customer.package'])->toArray();
+            })
+            ->addColumn('status_label', function (Invoice $inv) {
+                switch($inv->status) {
+                    case 'paid':
+                    case 'paid_transfer': return '<span class="px-2 border border-green-600 text-green-700 bg-green-50 text-[9px] rounded-sm uppercase font-bold">Lunas (Transfer)</span>';
+                    case 'paid_cash': return '<span class="px-2 border border-blue-600 text-blue-700 bg-blue-50 text-[9px] rounded-sm uppercase font-bold">Lunas (Cash)</span>';
+                    case 'paid_gateway': return '<span class="px-2 border border-purple-600 text-purple-700 bg-purple-50 text-[9px] rounded-sm uppercase font-bold">Lunas (PG)</span>';
+                    case 'overdue': return '<span class="px-2 border border-red-500 text-red-600 bg-red-50 text-[9px] rounded-sm uppercase font-bold">Terlambat</span>';
+                    case 'cancelled': return '<span class="px-2 border border-slate-400 text-slate-500 bg-slate-50 text-[9px] rounded-sm uppercase font-bold">Batal</span>';
+                    default: return '<span class="px-2 border border-orange-500 text-orange-600 bg-orange-50 text-[9px] rounded-sm uppercase font-bold">Belum Bayar</span>';
+                }
             })
             ->filterColumn('customer_code', function ($query, $keyword) {
                 $query->whereHas('customer', function ($q) use ($keyword) {
@@ -56,9 +70,15 @@ class InvoiceController extends Controller
                     $q->where('full_name', 'like', "%{$keyword}%");
                 });
             })
+            ->filterColumn('customer_address', function ($query, $keyword) {
+                $query->whereHas('customer', function ($q) use ($keyword) {
+                    $q->where('address', 'like', "%{$keyword}%");
+                });
+            })
             ->orderColumn('period_label', function ($query, $order) {
                 $query->orderBy('period_start', $order);
             })
+            ->rawColumns(['status_label'])
             ->toJson();
     }
 
@@ -70,19 +90,20 @@ class InvoiceController extends Controller
 
     public function markAsPaid(Invoice $invoice)
     {
-        if ($invoice->status === 'paid') {
+
+        if (in_array($invoice->status, ['paid', 'paid_transfer', 'paid_cash', 'paid_gateway'])) {
             return back()->with('error', 'Tagihan ini sudah berstatus lunas.');
         }
 
         $invoice->update([
-            'status' => 'paid',
+            'status' => 'paid_transfer',
         ]);
 
         try {
             $customer = $invoice->customer;
             if ($customer && $customer->status === 'suspend') {
                 $customer->update(['status' => 'active']);
-                
+
                 $settings = \App\Models\MikrotikSetting::where('is_active', true)->first();
                 if ($settings) {
                     $mikrotik = new \App\Services\MikrotikService($settings->host, $settings->username, $settings->password, $settings->port);
@@ -109,9 +130,9 @@ class InvoiceController extends Controller
 
     public function generateInvoices(Request $request)
     {
-        $customers = Customer::where('status', 'active')->get();
+        $customers = Customer::whereIn('status', ['active', 'suspend'])->get();
         $count = 0;
-        
+
         $targetMonth = (int) now()->month;
         $targetYear = (int) now()->year;
 
@@ -122,12 +143,12 @@ class InvoiceController extends Controller
                 $targetMonth = (int) $parts[1];
             }
         }
-        
+
         $targetPeriodDate = Carbon::create($targetYear, $targetMonth, 1)->startOfMonth();
 
         foreach ($customers as $customer) {
             $activeSince = $customer->active_since ? (clone $customer->active_since)->startOfMonth() : null;
-            
+
             // Jika pelanggan belum aktif saat periode target berakhir, skip
             if (!$activeSince || $activeSince->gt($targetPeriodDate)) {
                 continue;
@@ -149,12 +170,12 @@ class InvoiceController extends Controller
                     $monthStr = $currentScan->month;
                     $lastId = Invoice::max('id') ?? 0;
                     $newNumber = 'INV-' . $yearStr . str_pad($monthStr, 2, '0', STR_PAD_LEFT) . str_pad($lastId + 1, 4, '0', STR_PAD_LEFT);
-                    
+
                     $monthlyPrice = $customer->package->monthly_price ?? 0;
                     $activeSinceOriginal = $customer->active_since;
-                    
+
                     $amount = $monthlyPrice;
-                    
+
                     // Logika Prorata hanya jika ini adalah bulan pertama aktif
                     if ($activeSinceOriginal && $activeSinceOriginal->gt($periodStart) && $activeSinceOriginal->lt($periodEnd)) {
                         $daysInMonth = 30; // Standar 30 hari sesuai permintaan sebelumnya
@@ -165,15 +186,15 @@ class InvoiceController extends Controller
                     }
 
                     Invoice::create([
-                        'customer_id'    => $customer->id,
+                        'customer_id' => $customer->id,
                         'invoice_number' => $newNumber,
-                        'period_start'   => $periodStart->toDateString(),
-                        'period_end'     => $periodEnd->toDateString(),
-                        'amount'         => $amount,
-                        'tax_amount'     => 0,
-                        'total_amount'   => $amount, // tax 0
-                        'due_date'       => $dueDate->toDateString(),
-                        'status'         => 'unpaid',
+                        'period_start' => $periodStart->toDateString(),
+                        'period_end' => $periodEnd->toDateString(),
+                        'amount' => $amount,
+                        'tax_amount' => 0,
+                        'total_amount' => $amount, // tax 0
+                        'due_date' => $dueDate->toDateString(),
+                        'status' => 'unpaid',
                     ]);
                     $count++;
                 }
@@ -189,13 +210,16 @@ class InvoiceController extends Controller
     {
         $query = Invoice::with('customer')
             ->where('status', 'unpaid')
-            ->where('is_wa_sent', false);
+            ->where(function($q) {
+                $q->whereNull('is_wa_sent')
+                  ->orWhere('is_wa_sent', false);
+            });
 
         if ($request->filled('period')) {
             $parts = explode('-', $request->period);
             if (count($parts) === 2) {
                 $query->whereYear('period_start', $parts[0])
-                      ->whereMonth('period_start', $parts[1]);
+                    ->whereMonth('period_start', $parts[1]);
                 $periodLabel = Carbon::create($parts[0], $parts[1], 1)->translatedFormat('F Y');
             }
         }
@@ -233,16 +257,18 @@ class InvoiceController extends Controller
                 $invalid++;
             }
 
-            sleep(3);
+            sleep(rand(20, 30));
         }
 
         $statusMsg = "Berhasil mengirim {$count} pesan WhatsApp.";
-        
+
         if ($skipped > 0 || $invalid > 0) {
             $details = [];
-            if ($skipped > 0) $details[] = "{$skipped} nomor kosong";
-            if ($invalid > 0) $details[] = "{$invalid} nomor tidak terhubung WA";
-            
+            if ($skipped > 0)
+                $details[] = "{$skipped} nomor kosong";
+            if ($invalid > 0)
+                $details[] = "{$invalid} nomor tidak terhubung WA";
+
             $statusMsg .= " (" . implode(', ', $details) . " diloncati).";
         }
 
@@ -252,26 +278,26 @@ class InvoiceController extends Controller
     public function update(Request $request, Invoice $invoice)
     {
         $validated = $request->validate([
-            'amount'   => 'required|numeric|min:0',
+            'amount' => 'required|numeric|min:0',
             'due_date' => 'required|date',
-            'status'   => 'required|in:unpaid,paid,paid_cash,overdue,cancelled',
+            'status' => 'required|in:unpaid,paid_transfer,paid_cash,paid_gateway,overdue,cancelled',
         ]);
 
         $oldStatus = $invoice->status;
         $invoice->update([
-            'amount'       => $validated['amount'],
-            'tax_amount'   => 0,
+            'amount' => $validated['amount'],
+            'tax_amount' => 0,
             'total_amount' => $validated['amount'],
-            'due_date'     => $validated['due_date'],
-            'status'       => $validated['status'],
+            'due_date' => $validated['due_date'],
+            'status' => $validated['status'],
         ]);
 
-        if ($oldStatus !== 'paid' && $validated['status'] === 'paid') {
+        if (!in_array($oldStatus, ['paid_transfer', 'paid_cash', 'paid_gateway']) && in_array($validated['status'], ['paid_transfer', 'paid_cash', 'paid_gateway'])) {
             try {
                 $customer = $invoice->customer;
                 if ($customer && $customer->status === 'suspend') {
                     $customer->update(['status' => 'active']);
-                    
+
                     $settings = \App\Models\MikrotikSetting::where('is_active', true)->first();
                     if ($settings) {
                         $mikrotik = new \App\Services\MikrotikService($settings->host, $settings->username, $settings->password, $settings->port);
@@ -305,7 +331,7 @@ class InvoiceController extends Controller
     {
         $invoice->load(['customer', 'customer.package']);
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('common.invoice-pdf', compact('invoice'));
-        
+
         $filename = str_replace(['/', '\\'], '-', "Invoice_{$invoice->invoice_number}.pdf");
         return $pdf->download($filename);
     }
@@ -353,19 +379,71 @@ class InvoiceController extends Controller
         $template = AppSetting::get('wa_invoice_template', $defaultTemplate);
 
         return strtr($template, [
-            '{customer_name}'   => $customer->full_name ?? '-',
-            '{customer_code}'   => $customer->customer_code ?? '-',
-            '{address}'         => $customer->address ?? '-',
+            '{customer_name}' => $customer->full_name ?? '-',
+            '{customer_code}' => $customer->customer_code ?? '-',
+            '{address}' => $customer->address ?? '-',
             '{customer_address}' => $customer->address ?? '-',
-            '{package_name}'    => $customer->package->name ?? '-',
-            '{package}'         => $customer->package->name ?? '-',
+            '{package_name}' => $customer->package->name ?? '-',
+            '{package}' => $customer->package->name ?? '-',
             '{customer_package}' => $customer->package->name ?? '-',
-            '{package_price}'   => $customer->package ? 'Rp ' . number_format($customer->package->monthly_price, 0, ',', '.') : 'Rp 0',
-            '{monthly_price}'   => $customer->package ? 'Rp ' . number_format($customer->package->monthly_price, 0, ',', '.') : 'Rp 0',
-            '{period}'          => $period,
-            '{due_date}'        => $due,
-            '{total_amount}'    => $total,
-            '{payment_link}'    => $link,
+            '{package_price}' => $customer->package ? 'Rp ' . number_format($customer->package->monthly_price, 0, ',', '.') : 'Rp 0',
+            '{monthly_price}' => $customer->package ? 'Rp ' . number_format($customer->package->monthly_price, 0, ',', '.') : 'Rp 0',
+            '{period}' => $period,
+            '{due_date}' => $due,
+            '{total_amount}' => $total,
+            '{payment_link}' => $link,
         ]);
+    }
+
+    public function exportCsv(Request $request)
+    {
+        $query = Invoice::with(['customer', 'customer.package']);
+
+        if ($request->filled('period')) {
+            $parts = explode('-', $request->period);
+            if (count($parts) === 2) {
+                $query->whereYear('period_start', $parts[0])
+                    ->whereMonth('period_start', $parts[1]);
+            }
+        }
+
+        $invoices = $query->latest()->get();
+        $fileName = "Data_Invoice_" . ($request->period ?? 'All') . ".csv";
+
+        $headers = [
+            "Content-type"        => "text/csv",
+            "Content-Disposition" => "attachment; filename=$fileName",
+            "Pragma"              => "no-cache",
+            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+            "Expires"             => "0"
+        ];
+
+        $columns = ['Tanggal', 'No. Invoice', 'ID Pelanggan', 'Nama Pelanggan', 'Periode', 'Total Tagihan', 'Status'];
+
+        $callback = function() use($invoices, $columns) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, $columns);
+
+            foreach ($invoices as $inv) {
+                $statusText = $inv->status;
+                if ($inv->status === 'paid_transfer') $statusText = 'Lunas (Transfer)';
+                elseif ($inv->status === 'paid_cash') $statusText = 'Lunas (Cash)';
+                elseif ($inv->status === 'paid_gateway') $statusText = 'Lunas (PG)';
+                elseif ($inv->status === 'unpaid') $statusText = 'Belum Bayar';
+
+                fputcsv($file, [
+                    $inv->created_at->format('d/m/Y'),
+                    $inv->invoice_number,
+                    $inv->customer->customer_code ?? '-',
+                    $inv->customer->full_name ?? '-',
+                    Carbon::parse($inv->period_start)->translatedFormat('F Y'),
+                    (int) $inv->total_amount,
+                    strtoupper($statusText)
+                ]);
+            }
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 }

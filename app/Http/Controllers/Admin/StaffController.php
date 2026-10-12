@@ -21,6 +21,7 @@ class StaffController extends Controller
             'customers.edit' => 'Edit Data Pelanggan',
             'customers.delete' => 'Hapus Pelanggan',
             'customers.sync' => 'Push ke Mikrotik',
+            'customers.whatsapp' => 'Cek & Kirim WhatsApp Pelanggan',
         ],
         'Tagihan' => [
             'invoices.view' => 'Lihat Daftar Tagihan',
@@ -32,6 +33,9 @@ class StaffController extends Controller
         'Paket' => [
             'packages.view' => 'Lihat Paket Internet',
             'packages.manage' => 'Kelola Paket (Add/Edit/Delete)',
+        ],
+        'Chat' => [
+            'chat.manage' => 'Kelola Live Chat',
         ],
         'Sistem' => [
             'staff.manage' => 'Kelola Akun Staff',

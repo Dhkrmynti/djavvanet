@@ -261,7 +261,7 @@
     const status = document.getElementById('portal-chat-status');
     const typingLabel = document.getElementById('portal-chat-typing');
 
-    if (!listEl || !form || !window.Echo) {
+    if (!listEl || !form) {
         return;
     }
 
@@ -326,27 +326,30 @@
         });
     };
 
-    window.Echo.private(`customer.chat.${conversationId}`)
-        .listen('.chat.message.created', async (payload) => {
-            appendMessage(payload.message);
+    if (window.Echo && conversationId) {
+        window.Echo.private(`customer.chat.${conversationId}`)
+            .listen('.chat.message.created', async (payload) => {
+                appendMessage(payload.chat_message || payload.message);
 
-            if (payload.message.sender_type === 'admin') {
-                status.textContent = 'Pesan baru dari CS masuk realtime.';
-                await markRead();
-            }
-        })
-        .listen('.chat.typing.updated', (payload) => {
-            if (payload.actor_type !== 'admin') return;
+                const inboundMessage = payload.chat_message || payload.message;
+                if (inboundMessage?.sender_type === 'admin') {
+                    status.textContent = 'Pesan baru dari CS masuk realtime.';
+                    await markRead();
+                }
+            })
+            .listen('.chat.typing.updated', (payload) => {
+                if (payload.actor_type !== 'admin') return;
 
-            if (payload.is_typing) {
-                typingLabel.textContent = `${payload.actor_name || 'CS'} sedang mengetik...`;
-                typingLabel.classList.remove('hidden');
-                clearTimeout(remoteTypingTimeout);
-                remoteTypingTimeout = setTimeout(() => typingLabel.classList.add('hidden'), 2500);
-            } else {
-                typingLabel.classList.add('hidden');
-            }
-        });
+                if (payload.is_typing) {
+                    typingLabel.textContent = `${payload.actor_name || 'CS'} sedang mengetik...`;
+                    typingLabel.classList.remove('hidden');
+                    clearTimeout(remoteTypingTimeout);
+                    remoteTypingTimeout = setTimeout(() => typingLabel.classList.add('hidden'), 2500);
+                } else {
+                    typingLabel.classList.add('hidden');
+                }
+            });
+    }
 
     input.addEventListener('input', () => {
         clearTimeout(typingTimeout);
@@ -380,6 +383,9 @@
                 body: JSON.stringify({ message }),
             });
 
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
             const payload = await response.json();
             appendMessage(payload.chat_message);
             input.value = '';

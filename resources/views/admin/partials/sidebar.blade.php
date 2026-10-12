@@ -43,6 +43,7 @@
     </a>
     @endif
 
+    @if(auth()->user()->hasPermission('chat.manage'))
     <a href="{{ route('admin.chat.index') }}" class="nav-link {{ str_contains($currentRoute, 'chat') ? 'active' : '' }}">
       <div class="flex items-center gap-2.5">
          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-4l-4 4v-4H9z"/></svg>
@@ -51,6 +52,7 @@
       @php $chatUnread = \App\Models\ChatConversation::sum('unread_for_admin_count'); @endphp
       <span id="admin-chat-sidebar-badge" class="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[9px] px-1 rounded-sm border border-emerald-200 dark:border-emerald-800 nav-arrow font-black {{ $chatUnread > 0 ? '' : 'hidden' }}">{{ $chatUnread }}</span>
     </a>
+    @endif
 
     <!-- Paket Internet -->
     @if(auth()->user()->hasPermission('packages.view'))

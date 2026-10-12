@@ -47,6 +47,7 @@
                        placeholder="18817xxx atau Username"
                        required
                        autofocus
+                       autocomplete="username"
                        class="w-full px-4 py-3 rounded-lg bg-slate-950 border border-white/10 text-white text-sm 
                               focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 
                               transition-all duration-200 placeholder:text-slate-600">

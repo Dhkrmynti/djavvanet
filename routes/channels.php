@@ -9,11 +9,11 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 });
 
 Broadcast::channel('admin.chat', function ($user) {
-    return $user instanceof User;
+    return $user instanceof User && $user->hasPermission('chat.manage');
 });
 
 Broadcast::channel('admin.chat.conversation.{conversationId}', function ($user, $conversationId) {
-    return $user instanceof User;
+    return $user instanceof User && $user->hasPermission('chat.manage');
 });
 
 Broadcast::channel('customer.chat.{conversationId}', function ($customer, $conversationId) {

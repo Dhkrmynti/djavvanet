@@ -72,6 +72,7 @@ class AdminController extends Controller
             'customer_code'   => 'nullable|string|max:50',
             'username'        => 'nullable|string|max:255',
             'mikrotik_profile_override' => 'nullable|string|max:255',
+            'active_since'    => 'nullable|date',
         ]);
 
         $domain = $request->domain ?? 'djavva.net';
@@ -110,7 +111,7 @@ class AdminController extends Controller
             'address'         => $request->address,
             'billing_cycle'   => 1,
             'mikrotik_profile' => $request->mikrotik_profile_override,
-            'active_since'    => now(),
+            'active_since'    => $request->active_since ?? now(),
             'status'          => 'active',
         ]);
 
@@ -221,6 +222,7 @@ class AdminController extends Controller
             'username'        => 'nullable|string|max:255',
             'customer_code'   => 'nullable|string|max:50',
             'mikrotik_profile_override' => 'nullable|string|max:255',
+            'active_since'    => 'nullable|date',
         ]);
 
         $validated['billing_cycle'] = 1;

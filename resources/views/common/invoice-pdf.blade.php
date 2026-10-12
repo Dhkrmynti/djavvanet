@@ -277,7 +277,7 @@
                     <p class="invoice-title">Invoice</p>
                     <p class="invoice-number">#{{ $invoice->invoice_number }}</p>
                     <div class="status-box status-{{ $invoice->status }}">
-                        {{ $invoice->status === 'paid' ? 'Settled / Lunas' : ($invoice->status === 'overdue' ? 'Overdue' : 'Awaiting Payment') }}
+                        {{ in_array($invoice->status, ['paid', 'paid_transfer', 'paid_cash', 'paid_gateway']) ? 'Settled / Lunas' : ($invoice->status === 'overdue' ? 'Overdue' : 'Awaiting Payment') }}
                     </div>
                 </td>
             </tr>
@@ -363,7 +363,7 @@
 
         <!-- Payment Info -->
         <div class="payment-box">
-            @if($invoice->status === 'paid')
+            @if(in_array($invoice->status, ['paid', 'paid_transfer', 'paid_cash', 'paid_gateway']))
                 <div class="payment-title" style="color: #15803d; border-color: #bbf7d0;">Pembayaran Dikonfirmasi</div>
                 <div class="payment-info" style="color: #166534;">
                     Lunas & Terbayar via **Xendit Payment Gateway**.<br>

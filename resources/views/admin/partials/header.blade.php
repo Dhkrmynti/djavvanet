@@ -18,10 +18,12 @@
     </div>
   </div>
   <div class="flex items-center gap-3">
+    @if(auth()->user()->hasPermission('chat.manage'))
     <a href="{{ route('admin.chat.index') }}" class="relative inline-flex items-center justify-center h-8 w-8 rounded-sm border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors" title="Live Chat Inbox">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-4l-4 4v-4H9z"/></svg>
       <span id="admin-chat-header-badge" data-count="{{ \App\Models\ChatConversation::sum('unread_for_admin_count') }}" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-600 text-white text-[9px] font-black flex items-center justify-center {{ \App\Models\ChatConversation::sum('unread_for_admin_count') > 0 ? '' : 'hidden' }}">{{ \App\Models\ChatConversation::sum('unread_for_admin_count') }}</span>
     </a>
+    @endif
     <div class="text-[9px] text-[var(--text-muted)] font-black opacity-80 tracking-widest hidden md:block select-none">
       {{ auth()->user()->name ?? auth()->user()->email ?? 'Admin' }}
     </div>

@@ -121,6 +121,22 @@ class BillingTest extends TestCase
     }
 
     /** @test */
+    public function it_generates_invoices_for_suspended_customers_with_unpaid_invoices()
+    {
+        $package = Package::factory()->create();
+        $customer = Customer::factory()->create([
+            'package_id' => $package->id,
+            'status' => 'suspend',
+            'active_since' => '2026-01-01',
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.invoices.generate'), ['period' => '2026-04']);
+
+        $this->assertEquals(4, Invoice::where('customer_id', $customer->id)->count());
+    }
+
+    /** @test */
     public function it_tracks_whatsapp_sent_status()
     {
         $this->withoutExceptionHandling();

@@ -58,6 +58,11 @@
         </button>
         @endif
 
+        <button onclick="downloadInvoices()" class="bg-[var(--bg-card)] border border-[var(--border-main)] hover:bg-[var(--bg-table-head)] px-2 py-0.5 rounded shadow-sm text-blue-700 dark:text-blue-500 flex items-center gap-1 transition-all active:scale-95 font-bold">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Download Data
+        </button>
+
         <div class="flex items-center gap-1.5 text-[var(--text-muted)]">
           <span>Tampil</span>
           <select id="invoices-length" class="border border-[var(--border-main)] bg-[var(--bg-card)] px-1 py-0.5 rounded-sm outline-none font-bold text-[var(--text-main)]">
@@ -102,6 +107,7 @@
               <th>No Invoice</th>
               <th>ID Pelanggan</th>
               <th>Nama Pelanggan</th>
+              <th>Alamat</th>
               <th>Periode</th>
               <th class="text-right">Total</th>
               <th class="text-center">WA</th>
@@ -176,10 +182,14 @@
                  <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">Total Tagihan</div>
                  <div class="font-black text-[13px] text-slate-900 dark:text-white leading-none" id="det-total-amount">...</div>
               </div>
-              <div class="p-2 border-b border-slate-100 dark:border-slate-800">
-                 <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">Metode Bayar</div>
-                 <div class="italic text-slate-500 dark:text-slate-400 leading-none" id="det-payment-method">Transfer (VA)</div>
-              </div>
+               <div class="p-2 border-r border-b border-slate-100 dark:border-slate-800">
+                  <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">Metode Bayar</div>
+                  <div class="italic text-slate-500 dark:text-slate-400 leading-none" id="det-payment-method">Transfer (VA)</div>
+               </div>
+               <div class="p-2 border-b border-slate-100 dark:border-slate-800">
+                  <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">Tanggal Aktivasi</div>
+                  <div class="font-bold text-blue-600 dark:text-blue-400 leading-none" id="det-active-since">-</div>
+               </div>
               <!-- Row 6: Address Full Width -->
               <div class="col-span-2 p-2 border-b border-slate-100 dark:border-slate-800">
                  <div class="text-[8.5px] font-bold text-slate-400 mb-0.5">Alamat</div>
@@ -231,8 +241,9 @@
                  <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight">STATUS PEMBAYARAN *</label>
                  <select name="status" required class="w-full bg-[#f8fafc] dark:bg-slate-800 border border-[var(--border-main)] rounded-sm p-1.5 text-xs focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 dark:text-slate-200">
                     <option value="unpaid">Belum Bayar</option>
-                    <option value="paid">Lunas (Sistem)</option>
-                     <option value="paid_cash">Lunas (Cash)</option>
+                    <option value="paid_transfer">Lunas (Transfer)</option>
+                    <option value="paid_cash">Lunas (Cash)</option>
+                    <option value="paid_gateway">Lunas (PG)</option>
                     <option value="overdue">Terlambat</option>
                     <option value="cancelled">Dibatalkan</option>
                  </select>
@@ -308,8 +319,9 @@
             searchable: false,
             className: 'text-center',
             render: function(data) {
-              if (data === 'paid') return '<span class="text-[#22863a] font-bold">✓</span>';
+              if (data === 'paid' || data === 'paid_transfer') return '<span class="text-[#22863a] font-bold">✓</span>';
               if (data === 'paid_cash') return '<span class="text-[#0050b3] font-bold">✓</span>';
+              if (data === 'paid_gateway') return '<span class="text-purple-600 font-bold">✓</span>';
               if (data === 'overdue') return '<span class="text-[#cb2431] font-bold">!</span>';
               if (data === 'cancelled') return '<span class="text-[#999] font-bold">✕</span>';
               return '<span class="text-[#e36209] font-bold">○</span>';
@@ -325,6 +337,7 @@
           },
           { data: 'customer_code', name: 'customer_code', className: 'font-mono text-[10px] text-[var(--text-muted)]' },
           { data: 'customer_name', name: 'customer_name', className: 'font-bold' },
+          { data: 'customer_address', name: 'customer_address', className: 'text-[11px] text-[var(--text-muted)]' },
           { data: 'period_label', name: 'period_label' },
           {
             data: 'total_amount',
@@ -356,8 +369,9 @@
             name: 'status',
             className: 'text-center',
             render: function(data) {
-               if (data === 'paid') return '<span class="badge-up">Lunas</span>';
+               if (data === 'paid' || data === 'paid_transfer') return '<span class="badge-up">Lunas (TF)</span>';
                if (data === 'paid_cash') return '<span class="badge-up bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">Lunas (Cash)</span>';
+               if (data === 'paid_gateway') return '<span class="badge-up bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800">Lunas (PG)</span>';
               if (data === 'overdue') return '<span class="badge-down">Terlambat</span>';
               if (data === 'cancelled') return '<span class="badge-down opacity-50">Batal</span>';
               return '<span class="badge-warn">Belum Bayar</span>';
@@ -515,15 +529,25 @@
         $('#det-package').text(`${pkg.name || '-'} (${customer.username || '-'})`);
         $('#det-whatsapp').text(customer.whatsapp_number || '-');
         $('#det-total-amount').text('Rp ' + parseInt(data.total_amount).toLocaleString('id-ID'));
+        
+        if (customer.active_since) {
+            const d = new Date(customer.active_since);
+            $('#det-active-since').text(d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }));
+        } else {
+            $('#det-active-since').text('-');
+        }
+
         $('#det-address').text(customer.address || '-');
  
         const statusContainer = $('#det-status');
         let statusHtml = '<span class="badge-warn">Belum Bayar</span>';
         
-        if (data.status === 'paid') {
-           statusHtml = '<span class="badge-up">Lunas</span>';
+        if (data.status === 'paid' || data.status === 'paid_transfer') {
+           statusHtml = '<span class="badge-up">Lunas (Transfer)</span>';
         } else if (data.status === 'paid_cash') {
            statusHtml = '<span class="badge-up">Lunas (Cash)</span>';
+        } else if (data.status === 'paid_gateway') {
+           statusHtml = '<span class="badge-up bg-purple-50 text-purple-700 border-purple-200">Lunas (PG)</span>';
         } else if (data.status === 'overdue') {
            statusHtml = '<span class="badge-down">Terlambat</span>';
         } else if (data.status === 'cancelled') {
@@ -620,6 +644,11 @@
        }
     }
 
+    function downloadInvoices() {
+        const period = $('#period-select').val();
+        window.location.href = `{{ route('admin.invoices.export') }}?period=${period}`;
+    }
+
     function copyInvoiceDetail() {
       if(!currentInvoiceData) return;
       const data = currentInvoiceData;
@@ -629,11 +658,13 @@
       const period = pStart.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
       const total = 'Rp ' + parseInt(data.total_amount).toLocaleString('id-ID');
       const dueDate = data.due_date ? new Date(data.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-';
+      const activeSince = customer.active_since ? new Date(customer.active_since).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-';
       const payLink = `https://payment.djavva.net/pay/${data.payment_hash}`;
 
       const text = `No. Invoice: ${data.invoice_number}\n` +
                    `Nama: ${customer.full_name || '-'}\n` +
                    `ID Pelanggan: ${customer.customer_code || '-'}\n` +
+                   `Tgl Aktif: ${activeSince}\n` +
                    `Periode: ${period}\n` +
                    `Total: ${total}\n` +
                    `Jatuh Tempo: ${dueDate}\n` +

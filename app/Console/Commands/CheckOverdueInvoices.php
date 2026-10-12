@@ -107,7 +107,8 @@ class CheckOverdueInvoices extends Command
             }
 
             // 5. Jeda 1 detik agar Mikrotik tidak overload
-            sleep(1);
+            // Jeda acak agar tidak dianggap spam masal oleh WhatsApp
+            sleep(rand(3, 7));
         }
 
         if ($connected) {

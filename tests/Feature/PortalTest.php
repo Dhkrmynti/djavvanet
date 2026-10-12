@@ -5,7 +5,11 @@ namespace Tests\Feature;
 use App\Models\Customer;
 use App\Models\Package;
 use App\Models\Invoice;
+use App\Models\XenditFee;
+use App\Services\XenditService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Mockery;
 use Tests\TestCase;
 
 class PortalTest extends TestCase
@@ -110,6 +114,50 @@ class PortalTest extends TestCase
         $response = $this->get('/portal');
         
         $subdomain = config('app.payment_domain', 'payment.djavva.net');
-        $response->assertRedirect('http://' . $subdomain . '/login');
+        $response->assertRedirect('https://' . $subdomain . '/login');
+    }
+
+    public function test_checkout_cannot_be_triggered_with_get_request()
+    {
+        $invoice = Invoice::factory()->create(['customer_id' => $this->customer->id]);
+
+        $response = $this->get(route('payment.checkout', ['hash' => $invoice->payment_hash]));
+
+        $response->assertStatus(405);
+    }
+
+    public function test_public_maintenance_endpoints_are_not_registered()
+    {
+        $this->get('/run-migrations')->assertNotFound();
+        $this->get('/check-missing-invoices')->assertNotFound();
+    }
+
+    public function test_repeated_checkout_reuses_recent_xendit_invoice()
+    {
+        Cache::clear();
+
+        $invoice = Invoice::factory()->create([
+            'customer_id' => $this->customer->id,
+            'status' => 'unpaid',
+        ]);
+        $fee = XenditFee::create([
+            'name' => 'QRIS',
+            'code' => 'qris',
+            'type' => 'fixed',
+            'value' => 1000,
+            'is_active' => true,
+        ]);
+
+        $xendit = Mockery::mock(XenditService::class);
+        $xendit->shouldReceive('createInvoice')
+            ->once()
+            ->andReturn(['invoice_url' => 'https://checkout.example.test/invoice']);
+        $this->app->instance(XenditService::class, $xendit);
+
+        $checkoutUrl = route('payment.checkout', ['hash' => $invoice->payment_hash]);
+        $payload = ['fee_id' => $fee->id];
+
+        $this->post($checkoutUrl, $payload)->assertRedirect('https://checkout.example.test/invoice');
+        $this->post($checkoutUrl, $payload)->assertRedirect('https://checkout.example.test/invoice');
     }
 }

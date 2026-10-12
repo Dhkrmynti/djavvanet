@@ -33,6 +33,8 @@
                         $statusLabels = [
                             'unpaid' => ['label' => 'BELUM BAYAR', 'class' => 'bg-amber-500/10 text-amber-500 border-amber-500/20'],
                             'paid' => ['label' => 'LUNAS', 'class' => 'bg-green-500/10 text-green-500 border-green-500/20'],
+                            'paid_transfer' => ['label' => 'LUNAS TRANSFER', 'class' => 'bg-green-500/10 text-green-500 border-green-500/20'],
+                            'paid_gateway' => ['label' => 'LUNAS GATEWAY', 'class' => 'bg-purple-500/10 text-purple-500 border-purple-500/20'],
                             'paid_cash' => ['label' => 'LUNAS TUNAI', 'class' => 'bg-blue-500/10 text-blue-500 border-blue-500/20'],
                             'overdue' => ['label' => 'TERLAMBAT', 'class' => 'bg-red-500/10 text-red-500 border-red-500/20'],
                         ];
